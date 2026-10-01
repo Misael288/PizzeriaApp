@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sistema de gestión de pizzería
 
-## Getting Started
+Aplicación Next.js con TypeScript, Prisma y PostgreSQL.
 
-First, run the development server:
+## Requisitos
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Node.js 20.19 o posterior.
+- PostgreSQL accesible desde la máquina de desarrollo.
+- Una variable `DATABASE_URL` en `.env.local`. Prisma CLI debe recibir la variable en el entorno al ejecutar comandos, ya que no carga `.env.local` automáticamente.
+
+## Configurar la base
+
+`DATABASE_URL` utiliza el formato:
+
+```text
+postgresql://USUARIO:CONTRASEÑA@HOST:PUERTO/BASE?schema=public
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Codifica como URL los caracteres reservados de la contraseña (`@` se escribe `%40`, por ejemplo). No compartas credenciales ni agregues `.env.local` a Git.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+En PowerShell, carga la URL de `.env.local` para los comandos Prisma:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```powershell
+$entry = Get-Content ".env.local" | Where-Object { $_ -match "^DATABASE_URL=" }
+$env:DATABASE_URL = ($entry -replace "^DATABASE_URL=", "").Trim('"')
+```
 
-## Learn More
+Valida el esquema y añade las tablas de autenticación:
 
-To learn more about Next.js, take a look at the following resources:
+```powershell
+npm run prisma:validate
+npm run prisma:push
+npm run prisma:generate
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`prisma:push` sincroniza las tablas declaradas en `prisma/schema.prisma`. Revisa cualquier advertencia de Prisma antes de confirmar cambios. No uses `db push --accept-data-loss`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Crear las cuentas iniciales
 
-## Deploy on Vercel
+Define en `.env.local` las siguientes variables de bootstrap, con contraseñas fuertes distintas de al menos 14 caracteres y un token aleatorio largo:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```env
+BOOTSTRAP_TOKEN=
+INITIAL_ADMIN_NAME=
+INITIAL_ADMIN_EMAIL=
+INITIAL_ADMIN_PASSWORD=
+INITIAL_CASHIER_NAME=
+INITIAL_CASHIER_EMAIL=
+INITIAL_CASHIER_PASSWORD=
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Reinicia `npm run dev` para cargar estas variables. Desde otra terminal, carga el token en una variable de entorno local sin imprimirlo:
+
+```powershell
+$env:BOOTSTRAP_TOKEN = Read-Host "Token de bootstrap"
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://localhost:3000/api/auth/bootstrap" `
+  -Headers @{ "x-bootstrap-token" = $env:BOOTSTRAP_TOKEN }
+Remove-Item Env:BOOTSTRAP_TOKEN
+```
+
+El endpoint crea los roles `ADMIN` y `CASHIER`, así como la cuenta inicial de cada rol. Solo funciona con el token configurado y devuelve conflicto si ya existe un administrador. Tras crear las cuentas, elimina del `.env.local` las variables `BOOTSTRAP_TOKEN` e `INITIAL_*` y reinicia la aplicación.
+
+## Autenticación
+
+- Visita `/login` para iniciar sesión.
+- La sesión usa un token aleatorio opaco almacenado como cookie `HttpOnly`, `SameSite=Strict`, con duración de ocho horas.
+- La base almacena únicamente el hash del token y permite invalidar sesiones al cerrar sesión.
+- `/dashboard` requiere una sesión válida y redirige a `/login` si no existe.
+- `/api/auth/me` devuelve la identidad de la sesión; `/api/auth/logout` la invalida.
+- Solo `ADMIN` y `CASHIER` pueden iniciar sesión. El menú público y los clientes no requieren cuenta.
+
+## Comandos de desarrollo
+
+```powershell
+npm run dev
+npm run lint
+npm run build
+```

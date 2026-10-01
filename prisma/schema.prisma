@@ -1,0 +1,198 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model categorias {
+  id_categoria Int         @id @default(autoincrement())
+  nombre       String      @db.VarChar(100)
+  descripcion  String?     @db.VarChar(255)
+  activo       Boolean     @default(true)
+  productos    productos[]
+}
+
+model clientes {
+  id_cliente      Int       @id @default(autoincrement())
+  nombre          String    @db.VarChar(150)
+  telefono        String    @unique @db.VarChar(15)
+  direccion       String?   @db.VarChar(300)
+  calle           String?   @db.VarChar(100)
+  numero_exterior String?   @db.VarChar(20)
+  numero_interior String?   @db.VarChar(20)
+  colonia         String?   @db.VarChar(100)
+  codigo_postal   String?   @db.VarChar(10)
+  entre_calles    String?   @db.VarChar(150)
+  fecha_registro  DateTime  @default(now()) @db.Timestamptz(6)
+  activo          Boolean   @default(true)
+  pedidos         pedidos[]
+
+  @@index([telefono], map: "idx_clientes_telefono")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model detalle_pedido {
+  id_detalle                  Int                           @id @default(autoincrement())
+  id_pedido                   Int
+  id_producto                 Int
+  id_tamano                   Int?
+  cantidad                    Int
+  precio_unitario             Decimal                       @db.Decimal(10, 2)
+  subtotal                    Decimal?                      @default(dbgenerated("((cantidad)::numeric * precio_unitario)")) @db.Decimal(10, 2)
+  pedidos                     pedidos                       @relation(fields: [id_pedido], references: [id_pedido], onDelete: Cascade, onUpdate: NoAction)
+  productos                   productos                     @relation(fields: [id_producto], references: [id_producto], onUpdate: NoAction)
+  tamanos                     tamanos?                      @relation(fields: [id_tamano], references: [id_tamano], onUpdate: NoAction)
+  detalle_pedido_ingredientes detalle_pedido_ingredientes[]
+
+  @@index([id_pedido], map: "idx_detalle_pedido_fk")
+}
+
+model detalle_pedido_ingredientes {
+  id_detalle     Int
+  id_ingrediente Int
+  detalle_pedido detalle_pedido @relation(fields: [id_detalle], references: [id_detalle], onDelete: Cascade, onUpdate: NoAction)
+  ingredientes   ingredientes   @relation(fields: [id_ingrediente], references: [id_ingrediente], onUpdate: NoAction)
+
+  @@id([id_detalle, id_ingrediente])
+}
+
+model estados_pedido {
+  id_estado   Int       @id @default(autoincrement())
+  nombre      String    @unique @db.VarChar(30)
+  descripcion String?   @db.VarChar(100)
+  pedidos     pedidos[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model ingredientes {
+  id_ingrediente              Int                           @id @default(autoincrement())
+  nombre                      String                        @db.VarChar(100)
+  precio_extra                Decimal                       @default(0.00) @db.Decimal(10, 2)
+  stock_actual                Decimal                       @default(0.00) @db.Decimal(10, 2)
+  stock_minimo                Decimal                       @default(5.00) @db.Decimal(10, 2)
+  bloqueado                   Boolean                       @default(false)
+  detalle_pedido_ingredientes detalle_pedido_ingredientes[]
+  producto_ingredientes       producto_ingredientes[]
+  recetas                     recetas[]
+}
+
+model metodos_pago {
+  id_metodo_pago Int       @id @default(autoincrement())
+  nombre         String    @db.VarChar(50)
+  pedidos        pedidos[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model pedidos {
+  id_pedido      Int              @id @default(autoincrement())
+  id_cliente     Int
+  fecha          DateTime         @default(now()) @db.Timestamptz(6)
+  tipo_entrega   String           @db.VarChar(20)
+  total          Decimal          @default(0.00) @db.Decimal(10, 2)
+  id_metodo_pago Int?
+  id_estado      Int              @default(1)
+  detalle_pedido detalle_pedido[]
+  clientes       clientes         @relation(fields: [id_cliente], references: [id_cliente], onUpdate: NoAction)
+  estados_pedido estados_pedido   @relation(fields: [id_estado], references: [id_estado], onUpdate: NoAction)
+  metodos_pago   metodos_pago?    @relation(fields: [id_metodo_pago], references: [id_metodo_pago], onUpdate: NoAction)
+
+  @@index([id_cliente], map: "idx_pedidos_cliente")
+  @@index([fecha(sort: Desc), id_estado], map: "idx_pedidos_fecha_estado")
+}
+
+model producto_ingredientes {
+  id_producto    Int
+  id_ingrediente Int
+  ingredientes   ingredientes @relation(fields: [id_ingrediente], references: [id_ingrediente], onDelete: Cascade, onUpdate: NoAction)
+  productos      productos    @relation(fields: [id_producto], references: [id_producto], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([id_producto, id_ingrediente])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model producto_tamanos {
+  id_producto_tamano Int       @id @default(autoincrement())
+  id_producto        Int
+  id_tamano          Int
+  precio             Decimal   @db.Decimal(10, 2)
+  productos          productos @relation(fields: [id_producto], references: [id_producto], onDelete: Cascade, onUpdate: NoAction)
+  tamanos            tamanos   @relation(fields: [id_tamano], references: [id_tamano], onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model productos {
+  id_producto           Int                     @id @default(autoincrement())
+  id_categoria          Int
+  nombre                String                  @db.VarChar(100)
+  descripcion           String?                 @db.VarChar(255)
+  precio                Decimal                 @db.Decimal(10, 2)
+  imagen                String?                 @db.VarChar(255)
+  disponible            Boolean                 @default(true)
+  detalle_pedido        detalle_pedido[]
+  producto_ingredientes producto_ingredientes[]
+  producto_tamanos      producto_tamanos[]
+  categorias            categorias              @relation(fields: [id_categoria], references: [id_categoria], onUpdate: NoAction)
+  recetas               recetas[]
+
+  @@index([id_categoria], map: "idx_productos_categoria")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model recetas {
+  id_receta          Int          @id @default(autoincrement())
+  id_producto        Int
+  id_ingrediente     Int
+  cantidad_requerida Decimal      @db.Decimal(10, 2)
+  ingredientes       ingredientes @relation(fields: [id_ingrediente], references: [id_ingrediente], onUpdate: NoAction)
+  productos          productos    @relation(fields: [id_producto], references: [id_producto], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([id_producto], map: "idx_recetas_producto")
+}
+
+model tamanos {
+  id_tamano        Int                @id @default(autoincrement())
+  nombre           String             @db.VarChar(50)
+  detalle_pedido   detalle_pedido[]
+  producto_tamanos producto_tamanos[]
+}
+
+model Role {
+  id        Int           @id @default(autoincrement())
+  name      String        @unique @db.VarChar(30)
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  users     User[]
+
+  @@map("roles")
+}
+
+model User {
+  id           Int           @id @default(autoincrement())
+  name         String        @db.VarChar(150)
+  email        String        @unique @db.VarChar(254)
+  passwordHash String        @map("password_hash") @db.VarChar(200)
+  isActive     Boolean       @default(true) @map("is_active")
+  roleId       Int           @map("role_id")
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  role         Role          @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  sessions     UserSession[]
+
+  @@index([roleId], map: "idx_users_role_id")
+  @@map("users")
+}
+
+model UserSession {
+  id        String   @id @default(uuid()) @db.Uuid
+  tokenHash String   @unique @map("token_hash") @db.VarChar(64)
+  userId    Int      @map("user_id")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_user_sessions_user_id")
+  @@index([expiresAt], map: "idx_user_sessions_expires_at")
+  @@map("user_sessions")
+}

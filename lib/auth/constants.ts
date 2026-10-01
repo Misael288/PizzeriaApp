@@ -1,0 +1,4 @@
+const ADMIN_ROLE = "ADMIN";
+const CASHIER_ROLE = "CASHIER";
+
+export { ADMIN_ROLE, CASHIER_ROLE };
