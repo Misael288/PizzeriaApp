@@ -23,6 +23,14 @@ export default async function DashboardPage() {
         <p className="mt-3 text-stone-600">
           Sesión iniciada como {user.role === "ADMIN" ? "Administrador Principal" : "Cajero"}.
         </p>
+        <a
+          className="mt-6 inline-flex rounded-lg bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800"
+          href="/catalog"
+        >
+          {user.role === "ADMIN"
+            ? "Administrar categorías y productos"
+            : "Consultar productos disponibles"}
+        </a>
         <form action="/api/auth/logout" method="post" className="mt-8">
           <button className="rounded-lg border border-stone-300 px-4 py-2 font-medium text-stone-700 hover:bg-stone-50">
             Cerrar sesión
