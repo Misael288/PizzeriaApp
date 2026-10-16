@@ -502,20 +502,9 @@ export function CatalogManager({ role }: CatalogManagerProps) {
       const response = await fetch(
         `/api/catalog/products/${product.id_producto}`,
         {
-          method: "PUT",
+          method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            categoryId: product.id_categoria,
-            name: product.nombre,
-            description: product.descripcion,
-            image: product.imagen,
-            available: !product.disponible,
-            basePrice: Number(product.precio),
-            sizes: product.producto_tamanos.map((entry) => ({
-              sizeId: entry.tamanos.id_tamano,
-              price: Number(entry.precio),
-            })),
-          }),
+          body: JSON.stringify({ available: !product.disponible }),
         },
       );
 
@@ -541,23 +530,31 @@ export function CatalogManager({ role }: CatalogManagerProps) {
   const selectedSizeIds = new Set(productSizes.map((entry) => entry.sizeId));
 
   return (
+    //Aquie empieza el diseño
     <main className="container py-4 py-lg-5">
-      <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-        <div>
-          <p className="text-uppercase text-danger fw-semibold small mb-1">
-            Administración del catálogo
-          </p>
-          <h1 className="h2 mb-1">Categorías y productos</h1>
-          <p className="text-secondary mb-0">
-            {isAdmin
-              ? "Administra categorías, productos y presentaciones."
-              : "Consulta los productos disponibles para registrar pedidos."}
-          </p>
-        </div>
-        <a className="btn btn-outline-secondary" href="/dashboard">
-          Volver al panel
-        </a>
-      </div>
+      <header className="bg-[#071C3B] container py-4 py-lg-5">
+  <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+      <p className="text-white text-uppercase text-danger fw-semibold small mb-1">
+        Administración del catálogo
+      </p>
+      <p className="text-white text-uppercase fw-semibold small mb-1">
+        Pizzería Planeta
+        </p>
+      <h1 className="h2 mb-1 text-white">
+        Categorías y productos
+      </h1>
+      <p className="text-secondary mb-0 text-white">
+        {isAdmin
+          ? "Administra categorías, productos y presentaciones."
+          : "Consulta los productos disponibles para registrar pedidos."}
+      </p>
+    </div>
+    <a className="btn btn-outline-secondary text-white" style={{backgroundColor:'#F52727'}} href="/dashboard">
+      Volver al panel
+    </a>
+  </div>
+</header>
 
       {error ? (
         <div className="alert alert-danger" role="alert">
@@ -1048,7 +1045,13 @@ export function CatalogManager({ role }: CatalogManagerProps) {
                             >
                               {product.disponible ? "Disponible" : "No disponible"}
                             </span>
-                          ) : null}
+                                            ) : (
+                                              <span
+                                                className={`badge ${product.disponible ? "text-bg-success" : "text-bg-secondary"}`}
+                                              >
+                                                {product.disponible ? "Disponible" : "No disponible"}
+                                              </span>
+                                            )}
                         </div>
                         <h3 className="h5 mt-3">{product.nombre}</h3>
                         {product.descripcion ? (
@@ -1092,7 +1095,19 @@ export function CatalogManager({ role }: CatalogManagerProps) {
                                 : "Hacer disponible"}
                             </button>
                           </div>
-                        ) : null}
+                        ) : (
+                          <div className="mt-auto">
+                            <button
+                              className="btn btn-sm btn-outline-secondary"
+                              onClick={() => void toggleProduct(product)}
+                              type="button"
+                            >
+                              {product.disponible
+                                ? "Marcar no disponible"
+                                : "Hacer disponible"}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </article>
                   </div>

@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Pizzería | Administración",
-  description: "Administración del sistema de gestión de la pizzería",
+  title: "Pizzería Planeta | Menú y pedidos",
+  description: "Menú digital y seguimiento de pedidos de la pizzería",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

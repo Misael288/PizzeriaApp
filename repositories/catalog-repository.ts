@@ -46,7 +46,7 @@ const createSize = (data: SizeInput) =>
 const listProducts = (availableOnly: boolean) =>
   prisma.productos.findMany({
     where: availableOnly
-      ? { disponible: true, categorias: { activo: true } }
+      ? { categorias: { activo: true } }
       : undefined,
     orderBy: [{ categorias: { nombre: "asc" } }, { nombre: "asc" }],
     include: {

@@ -40,6 +40,7 @@ bin-release/
 /build
 /public/uploads/products/*
 !/public/uploads/products/.gitkeep
+/private/payment-proofs/
 
 # misc
 .DS_Store

@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request): Promise<NextResponse> {
   try {
-    const response = NextResponse.redirect(new URL("/login", request.url), 303);
+    const response = NextResponse.redirect(new URL("/", request.url), 303);
     await destroySession(response);
     return response;
   } catch (error: unknown) {

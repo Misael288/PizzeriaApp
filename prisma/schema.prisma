@@ -70,37 +70,108 @@ model estados_pedido {
 model ingredientes {
   id_ingrediente              Int                           @id @default(autoincrement())
   nombre                      String                        @db.VarChar(100)
+  unidad_medida               String                        @default("pieza") @db.VarChar(20)
   precio_extra                Decimal                       @default(0.00) @db.Decimal(10, 2)
   stock_actual                Decimal                       @default(0.00) @db.Decimal(10, 2)
   stock_minimo                Decimal                       @default(5.00) @db.Decimal(10, 2)
   bloqueado                   Boolean                       @default(false)
   detalle_pedido_ingredientes detalle_pedido_ingredientes[]
+  movimientos_inventario      movimientos_inventario[]
   producto_ingredientes       producto_ingredientes[]
   recetas                     recetas[]
 }
 
 model metodos_pago {
-  id_metodo_pago Int       @id @default(autoincrement())
-  nombre         String    @db.VarChar(50)
-  pedidos        pedidos[]
+  id_metodo_pago     Int       @id @default(autoincrement())
+  nombre             String    @db.VarChar(50)
+  pedidos            pedidos[] @relation("PagoConfirmado")
+  pedidos_previstos  pedidos[] @relation("PagoPrevisto")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model pedidos {
-  id_pedido      Int              @id @default(autoincrement())
-  id_cliente     Int
-  fecha          DateTime         @default(now()) @db.Timestamptz(6)
-  tipo_entrega   String           @db.VarChar(20)
-  total          Decimal          @default(0.00) @db.Decimal(10, 2)
-  id_metodo_pago Int?
-  id_estado      Int              @default(1)
-  detalle_pedido detalle_pedido[]
-  clientes       clientes         @relation(fields: [id_cliente], references: [id_cliente], onUpdate: NoAction)
-  estados_pedido estados_pedido   @relation(fields: [id_estado], references: [id_estado], onUpdate: NoAction)
-  metodos_pago   metodos_pago?    @relation(fields: [id_metodo_pago], references: [id_metodo_pago], onUpdate: NoAction)
+  id_pedido                 Int              @id @default(autoincrement())
+  id_cliente                Int
+  fecha                     DateTime         @default(now()) @db.Timestamptz(6)
+  tipo_entrega              String           @db.VarChar(20)
+  direccion_entrega         String?          @db.VarChar(300)
+  total                     Decimal          @default(0.00) @db.Decimal(10, 2)
+  id_metodo_pago            Int?
+  id_metodo_pago_previsto  Int?
+  id_estado                 Int              @default(1)
+  prioridad                 String           @default("NORMAL") @db.VarChar(20)
+  token_seguimiento_hash    String?          @unique @db.VarChar(64)
+  confirmado_en             DateTime?        @db.Timestamptz(6)
+  confirmado_por            Int?
+  pagado_en                 DateTime?        @db.Timestamptz(6)
+  pagado_por                Int?
+  fecha_inicio_preparacion DateTime?         @db.Timestamptz(6)
+  fecha_listo               DateTime?         @db.Timestamptz(6)
+  detalle_pedido            detalle_pedido[]
+  historial_pedidos         historial_pedidos[]
+  movimientos_inventario    movimientos_inventario[]
+  comprobante_pago          comprobantes_pago?
+  clientes                  clientes         @relation(fields: [id_cliente], references: [id_cliente], onUpdate: NoAction)
+  estados_pedido            estados_pedido   @relation(fields: [id_estado], references: [id_estado], onUpdate: NoAction)
+  metodos_pago              metodos_pago?    @relation("PagoConfirmado", fields: [id_metodo_pago], references: [id_metodo_pago], onUpdate: NoAction)
+  metodo_pago_previsto      metodos_pago?    @relation("PagoPrevisto", fields: [id_metodo_pago_previsto], references: [id_metodo_pago], onUpdate: NoAction)
+  usuario_confirmacion      User?            @relation("PedidoConfirmadoPor", fields: [confirmado_por], references: [id], onDelete: SetNull)
+  usuario_pago              User?            @relation("PedidoPagadoPor", fields: [pagado_por], references: [id], onDelete: SetNull)
 
   @@index([id_cliente], map: "idx_pedidos_cliente")
   @@index([fecha(sort: Desc), id_estado], map: "idx_pedidos_fecha_estado")
+  @@index([id_estado, prioridad, fecha], map: "idx_pedidos_cola")
+}
+
+model comprobantes_pago {
+  id_comprobante    Int      @id @default(autoincrement())
+  id_pedido         Int      @unique
+  clave_almacenamiento String @unique @db.VarChar(100)
+  nombre_archivo    String   @db.VarChar(150)
+  tipo_contenido    String   @db.VarChar(30)
+  creado_en         DateTime @default(now()) @db.Timestamptz(6)
+  actualizado_en    DateTime @updatedAt @db.Timestamptz(6)
+  pedidos           pedidos  @relation(fields: [id_pedido], references: [id_pedido], onDelete: Cascade)
+
+  @@map("comprobantes_pago")
+}
+
+model configuracion_sistema {
+  clave       String   @id @db.VarChar(100)
+  valor       String   @db.VarChar(255)
+  actualizado DateTime @updatedAt @db.Timestamptz(6)
+}
+
+model movimientos_inventario {
+  id_movimiento   Int          @id @default(autoincrement())
+  id_ingrediente Int
+  id_pedido       Int?
+  id_usuario      Int?
+  tipo            String       @db.VarChar(30)
+  cantidad        Decimal      @db.Decimal(12, 3)
+  stock_anterior  Decimal      @db.Decimal(12, 3)
+  stock_nuevo     Decimal      @db.Decimal(12, 3)
+  motivo          String?      @db.VarChar(255)
+  creado_en       DateTime     @default(now()) @db.Timestamptz(6)
+  ingredientes    ingredientes @relation(fields: [id_ingrediente], references: [id_ingrediente], onDelete: Restrict)
+  pedidos         pedidos?     @relation(fields: [id_pedido], references: [id_pedido], onDelete: SetNull)
+  usuarios        User?        @relation(fields: [id_usuario], references: [id], onDelete: SetNull)
+
+  @@index([id_ingrediente, creado_en(sort: Desc)], map: "idx_movimientos_ingrediente_fecha")
+  @@index([id_pedido], map: "idx_movimientos_pedido")
+}
+
+model historial_pedidos {
+  id_historial    Int       @id @default(autoincrement())
+  id_pedido       Int
+  id_usuario      Int?
+  estado_anterior String? @db.VarChar(30)
+  estado_nuevo    String    @db.VarChar(30)
+  creado_en       DateTime  @default(now()) @db.Timestamptz(6)
+  pedidos         pedidos   @relation(fields: [id_pedido], references: [id_pedido], onDelete: Cascade)
+  usuarios        User?     @relation(fields: [id_usuario], references: [id], onDelete: SetNull)
+
+  @@index([id_pedido, creado_en], map: "idx_historial_pedidos_fecha")
 }
 
 model producto_ingredientes {
@@ -144,12 +215,16 @@ model productos {
 model recetas {
   id_receta          Int          @id @default(autoincrement())
   id_producto        Int
+  id_tamano          Int?
   id_ingrediente     Int
   cantidad_requerida Decimal      @db.Decimal(10, 2)
   ingredientes       ingredientes @relation(fields: [id_ingrediente], references: [id_ingrediente], onUpdate: NoAction)
   productos          productos    @relation(fields: [id_producto], references: [id_producto], onDelete: Cascade, onUpdate: NoAction)
+  tamanos            tamanos?     @relation(fields: [id_tamano], references: [id_tamano], onDelete: Cascade, onUpdate: NoAction)
 
+  @@unique([id_producto, id_tamano, id_ingrediente], map: "uq_recetas_producto_tamano_ingrediente")
   @@index([id_producto], map: "idx_recetas_producto")
+  @@index([id_producto, id_tamano], map: "idx_recetas_producto_tamano")
 }
 
 model tamanos {
@@ -157,6 +232,7 @@ model tamanos {
   nombre           String             @db.VarChar(50)
   detalle_pedido   detalle_pedido[]
   producto_tamanos producto_tamanos[]
+  recetas          recetas[]
 }
 
 model Role {
@@ -177,8 +253,12 @@ model User {
   roleId       Int           @map("role_id")
   createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-  role         Role          @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  sessions     UserSession[]
+  role                 Role                     @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  sessions             UserSession[]
+  pedidos_confirmados pedidos[] @relation("PedidoConfirmadoPor")
+  pedidos_pagados      pedidos[]                @relation("PedidoPagadoPor")
+  movimientos_inventario movimientos_inventario[]
+  historial_pedidos    historial_pedidos[]
 
   @@index([roleId], map: "idx_users_role_id")
   @@map("users")
