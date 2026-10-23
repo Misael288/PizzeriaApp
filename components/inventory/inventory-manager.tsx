@@ -337,183 +337,375 @@ export function InventoryManager() {
   };
 
   return (
-    <main className="min-h-screen bg-stone-100 px-4 py-8 sm:px-6">
-      <div className="mx-auto max-w-7xl">
-        <header className="flex flex-wrap items-end justify-between gap-4">
+  <main className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl space-y-8">
+
+      <header className="overflow-hidden rounded-3xl bg-[#071C3B] shadow-xl">
+        <div className="flex flex-col justify-between gap-6 p-6 sm:p-8 lg:flex-row lg:items-center">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-red-700">
+            <span className="inline-flex rounded-full bg-red-500/15 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.2em] text-red-400">
               Administración
-            </p>
-            <h1 className="mt-1 text-3xl font-bold">Inventario y recetas</h1>
-            <p className="mt-2 text-stone-600">
-              Las cantidades de la receta usan la unidad configurada para cada
-              ingrediente.
+            </span>
+
+            <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+              Inventario y recetas
+            </h1>
+
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
+              Controla las existencias, administra las materias primas y
+              configura las recetas de Pizzería Planeta.
             </p>
           </div>
+
           <a
-            className="rounded-lg border border-stone-300 bg-white px-4 py-2 font-semibold"
             href="/dashboard"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F52727] px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-400/30"
           >
+            <span aria-hidden="true">←</span>
             Volver al panel
           </a>
-        </header>
+        </div>
 
-        {(error || notice) && (
-          <p
-            aria-live="polite"
-            className={`mt-5 rounded-xl p-4 ${
-              error ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"
-            }`}
-            role={error ? "alert" : "status"}
-          >
-            {error || notice}
+        <div className="grid grid-cols-1 divide-y divide-white/10 border-t border-white/10 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          <div className="p-5">
+            <p className="text-sm text-slate-400">Ingredientes registrados</p>
+            <p className="mt-2 text-2xl font-bold text-white">
+              {data.ingredients.length}
+            </p>
+          </div>
+
+          <div className="p-5">
+            <p className="text-sm text-slate-400">Productos evaluados</p>
+            <p className="mt-2 text-2xl font-bold text-white">
+              {data.products.length}
+            </p>
+          </div>
+
+          <div className="p-5">
+            <p className="text-sm text-slate-400">Alertas de inventario</p>
+            <p className="mt-2 text-2xl font-bold text-red-400">
+              {data.ingredients.filter((ingredient) => ingredient.lowStock).length}
+            </p>
+          </div>
+        </div>
+      </header>
+
+      {/* MENSAJES */}
+
+      {(error || notice) && (
+        <div
+          aria-live="polite"
+          className={`flex items-start gap-3 rounded-2xl border p-4 text-sm shadow-sm ${
+            error
+              ? "border-red-200 bg-red-50 text-red-800"
+              : "border-emerald-200 bg-emerald-50 text-emerald-800"
+          }`}
+          role={error ? "alert" : "status"}
+        >
+          <span className="text-lg font-bold">
+            {error ? "!" : "✓"}
+          </span>
+          <p className="pt-0.5">{error || notice}</p>
+        </div>
+      )}
+
+      {/* EXISTENCIAS */}
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-4 border-b border-slate-100 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-widest text-blue-600">
+              Control de materias primas
+            </span>
+            <h2 className="mt-2 text-xl font-bold text-[#071C3B]">
+              Existencias de inventario
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Actualiza el stock y revisa los niveles mínimos de cada ingrediente.
+            </p>
+          </div>
+
+          <span className="inline-flex w-fit items-center rounded-full bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700">
+            {data.ingredients.length} ingredientes
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+              <tr>
+                <th className="px-6 py-4 font-bold">Ingrediente</th>
+                <th className="px-4 py-4 font-bold">Unidad</th>
+                <th className="px-4 py-4 font-bold">Stock actual</th>
+                <th className="px-4 py-4 font-bold">Stock mínimo</th>
+                <th className="px-4 py-4 font-bold">Estado</th>
+                <th className="px-6 py-4 text-right font-bold">Acción</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-100">
+              {data.ingredients.map((ingredient) => (
+                <tr
+                  key={ingredient.id_ingrediente}
+                  className="transition hover:bg-slate-50/80"
+                >
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-lg text-blue-600">
+                        ◈
+                      </div>
+                      <span className="font-semibold text-[#071C3B]">
+                        {ingredient.nombre}
+                      </span>
+                    </div>
+                  </td>
+
+                  <td className="px-4 py-4">
+                    <span className="rounded-lg bg-slate-100 px-3 py-1.5 font-medium text-slate-600">
+                      {ingredient.unidad_medida}
+                    </span>
+                  </td>
+
+                  <td className="px-4 py-4">
+                    <input
+                      aria-label={`Existencia de ${ingredient.nombre}`}
+                      className="w-28 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold text-[#071C3B] outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                      min={0}
+                      onChange={(event) =>
+                        setEditingStock((current) => ({
+                          ...current,
+                          [ingredient.id_ingrediente]: event.target.value,
+                        }))
+                      }
+                      step="0.001"
+                      type="number"
+                      value={editingStock[ingredient.id_ingrediente] ?? ""}
+                    />
+                  </td>
+
+                  <td className="px-4 py-4 font-medium text-slate-600">
+                    {ingredient.stock_minimo} {ingredient.unidad_medida}
+                  </td>
+
+                  <td className="px-4 py-4">
+                    {ingredient.lowStock ? (
+                      <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-800">
+                        <span className="h-2 w-2 rounded-full bg-amber-500" />
+                        Stock bajo
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-800">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                        Suficiente
+                      </span>
+                    )}
+                  </td>
+
+                  <td className="px-6 py-4 text-right">
+                    <button
+                      className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/20"
+                      onClick={() => void saveStock(ingredient)}
+                      type="button"
+                    >
+                      EDITAR
+                    </button>
+                  </td>
+                </tr>
+              ))}
+
+              {data.ingredients.length === 0 && (
+                <tr>
+                  <td className="px-6 py-12 text-center" colSpan={6}>
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl text-slate-400">
+                      ◈
+                    </div>
+                    <p className="mt-4 font-semibold text-slate-700">
+                      No hay ingredientes registrados
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Registra materias primas para comenzar a configurar las recetas.
+                    </p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="border-t border-slate-100 bg-slate-50 px-6 py-3">
+          <p className="text-xs text-slate-500">
+            Los reabastecimientos y ajustes se agregan al historial de movimientos.
           </p>
+        </div>
+      </section>
+
+      {/* DISPONIBILIDAD DE PRODUCTOS */}
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 p-6">
+          <span className="text-xs font-bold uppercase tracking-widest text-blue-600">
+            Validación de recetas
+          </span>
+          <h2 className="mt-2 text-xl font-bold text-[#071C3B]">
+            Disponibilidad de productos
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Consulta qué productos pueden venderse según sus recetas y existencias.
+          </p>
+        </div>
+
+        {data.availability.some((product) => !product.available) && (
+          <div className="mx-6 mt-5 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <span className="text-lg">!</span>
+            <p>
+              Hay productos no vendibles. Revisa que estén habilitados, tengan
+              receta configurada y cuenten con stock suficiente.
+            </p>
+          </div>
         )}
 
-        <section className="mt-6 rounded-2xl bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-bold">Existencias</h2>
-          <p className="mt-1 text-sm text-stone-600">
-            Los reabastecimientos y ajustes se agregan al historial de
-            movimientos.
-          </p>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[44rem] text-left text-sm">
-              <thead className="border-b border-stone-200 text-stone-500">
-                <tr>
-                  <th className="py-2">Ingrediente</th>
-                  <th>Unidad</th>
-                  <th>Stock actual</th>
-                  <th>Mínimo</th>
-                  <th>Estado</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {data.ingredients.map((ingredient) => (
-                  <tr
-                    className="border-b border-stone-100"
-                    key={ingredient.id_ingrediente}
-                  >
-                    <td className="py-3 font-semibold">{ingredient.nombre}</td>
-                    <td>{ingredient.unidad_medida}</td>
-                    <td>
-                      <input
-                        aria-label={`Existencia de ${ingredient.nombre}`}
-                        className="w-28 rounded border border-stone-300 px-2 py-1"
-                        min={0}
-                        onChange={(event) =>
-                          setEditingStock((current) => ({
-                            ...current,
-                            [ingredient.id_ingrediente]: event.target.value,
-                          }))
-                        }
-                        step="0.001"
-                        type="number"
-                        value={editingStock[ingredient.id_ingrediente] ?? ""}
-                      />
-                    </td>
-                    <td>
-                      {ingredient.stock_minimo} {ingredient.unidad_medida}
-                    </td>
-                    <td>
-                      {ingredient.lowStock ? (
-                        <span className="font-semibold text-amber-800">
-                          Bajo
-                        </span>
-                      ) : (
-                        <span className="text-emerald-800">Suficiente</span>
-                      )}
-                    </td>
-                    <td>
-                      <button
-                        className="rounded border border-stone-300 px-3 py-1 hover:bg-stone-50"
-                        onClick={() => void saveStock(ingredient)}
-                        type="button"
-                      >
-                        Guardar ajuste
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {data.ingredients.length === 0 && (
-                  <tr>
-                    <td className="py-4 text-stone-500" colSpan={6}>
-                      Aún no hay ingredientes. Registra materias primas para
-                      configurar recetas.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <div className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 xl:grid-cols-3">
+          {data.products.map((product) => {
+            const availability = data.availability.find(
+              (entry) => entry.productId === product.id_producto,
+            );
 
-        <section className="mt-6 rounded-2xl bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-bold">Disponibilidad de productos</h2>
-          {data.availability.some((product) => !product.available) && (
-            <p className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-              Hay productos no vendibles. Antes de operar, revisa que estén
-              habilitados y tengan receta configurada y stock suficiente.
-            </p>
-          )}
-          <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {data.products.map((product) => {
-              const availability = data.availability.find(
-                (entry) => entry.productId === product.id_producto,
-              );
-              return (
-                <li
-                  className="rounded-lg border border-stone-200 p-4"
-                  key={product.id_producto}
-                >
-                  <p className="font-semibold">{product.nombre}</p>
-                  <p
-                    className={
+            return (
+              <article
+                key={product.id_producto}
+                className="rounded-2xl border border-slate-200 p-5 transition hover:border-blue-200 hover:shadow-md"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-xl text-blue-600">
+                    ◈
+                  </div>
+
+                  <span
+                    className={`rounded-full px-3 py-1.5 text-xs font-bold ${
                       availability?.available
-                        ? "mt-1 text-sm font-semibold text-emerald-800"
-                        : "mt-1 text-sm font-semibold text-amber-800"
-                    }
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-amber-100 text-amber-800"
+                    }`}
                   >
                     {availability?.available ? "Vendible" : "No vendible"}
-                  </p>
+                  </span>
+                </div>
+
+                <h3 className="mt-4 text-lg font-bold text-[#071C3B]">
+                  {product.nombre}
+                </h3>
+
+                <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-slate-500">
+                      Receta
+                    </span>
+                    <span
+                      className={`text-xs font-bold ${
+                        availability?.recipeConfigured
+                          ? "text-emerald-700"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {availability?.recipeConfigured
+                        ? "Configurada"
+                        : "Pendiente"}
+                    </span>
+                  </div>
+
+                  {product.producto_tamanos.length > 0 && (
+                    <div className="space-y-2">
+                      {availability?.sizes.map((size, index) => (
+                        <div
+                          key={`${product.id_producto}-${index}`}
+                          className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2"
+                        >
+                          <span className="text-xs text-slate-600">
+                            {product.producto_tamanos.find(
+                              (entry) => entry.id_tamano === size.sizeId,
+                            )?.tamanos.nombre ?? "Presentación"}
+                          </span>
+                          <span
+                            className={`text-xs font-bold ${
+                              size.available
+                                ? "text-emerald-700"
+                                : "text-amber-700"
+                            }`}
+                          >
+                            {size.available ? "Disponible" : "Stock insuficiente"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {!availability?.recipeConfigured && (
-                    <p className="mt-1 text-sm text-stone-600">
-                      Falta configurar receta para una o más presentaciones.
+                    <p className="rounded-lg bg-red-50 p-3 text-xs leading-5 text-red-700">
+                      Falta configurar la receta para una o más presentaciones.
                     </p>
                   )}
-                  {availability?.recipeConfigured &&
-                    !availability.available && (
-                      <p className="mt-1 text-sm text-stone-600">
-                        Revisa habilitación, bloqueo de ingredientes y stock
-                        mínimo.
-                      </p>
-                    )}
+
+                  {availability?.recipeConfigured && !availability.available && (
+                    <p className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+                      Revisa la habilitación del producto, los ingredientes bloqueados
+                      y el stock mínimo.
+                    </p>
+                  )}
+
                   {availability?.sizes.some((size) => !size.available) && (
-                    <p className="mt-1 text-sm text-stone-600">
+                    <p className="text-xs leading-5 text-slate-500">
                       Una o más presentaciones no tienen existencia suficiente.
                     </p>
                   )}
-                </li>
-              );
-            })}
-            {data.products.length === 0 && (
-              <li className="text-sm text-stone-600">
-                No hay productos de catálogo para evaluar.
-              </li>
-            )}
-          </ul>
-        </section>
+                </div>
+              </article>
+            );
+          })}
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          <form
-            className="space-y-4 rounded-2xl bg-white p-5 shadow-sm"
-            onSubmit={saveIngredient}
-          >
-            <h2 className="text-xl font-bold">Agregar ingrediente</h2>
-            <label className="block text-sm font-semibold">
-              Nombre
+          {data.products.length === 0 && (
+            <div className="rounded-xl bg-slate-50 p-8 text-center sm:col-span-2 xl:col-span-3">
+              <p className="font-semibold text-slate-700">
+                No hay productos para evaluar
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Los productos del catálogo aparecerán en esta sección.
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* FORMULARIOS */}
+
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-2">
+
+        {/* AGREGAR INGREDIENTE */}
+
+        <form
+          className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+          onSubmit={saveIngredient}
+        >
+          <div className="border-b border-slate-100 p-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 text-xl text-[#F52727]">
+                +
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-[#071C3B]">
+                  Agregar ingrediente
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Registra una nueva materia prima.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-5 p-6">
+            <label className="block text-sm font-semibold text-slate-700">
+              Nombre del ingrediente
               <input
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 font-normal"
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-normal outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
                 maxLength={100}
                 onChange={(event) =>
                   setIngredientForm((current) => ({
@@ -523,13 +715,15 @@ export function InventoryManager() {
                 }
                 required
                 value={ingredientForm.name}
+                placeholder="Ej. Queso mozzarella"
               />
             </label>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <label className="text-sm font-semibold">
-                Unidad
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <label className="text-sm font-semibold text-slate-700">
+                Unidad de medida
                 <select
-                  className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2"
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 font-normal outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                   onChange={(event) =>
                     setIngredientForm((current) => ({
                       ...current,
@@ -545,10 +739,11 @@ export function InventoryManager() {
                   ))}
                 </select>
               </label>
-              <label className="text-sm font-semibold">
+
+              <label className="text-sm font-semibold text-slate-700">
                 Existencia inicial
                 <input
-                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 font-normal outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                   min={0}
                   onChange={(event) =>
                     setIngredientForm((current) => ({
@@ -562,10 +757,11 @@ export function InventoryManager() {
                   value={ingredientForm.stock}
                 />
               </label>
-              <label className="text-sm font-semibold">
+
+              <label className="text-sm font-semibold text-slate-700">
                 Stock mínimo
                 <input
-                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 font-normal outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                   min={0}
                   onChange={(event) =>
                     setIngredientForm((current) => ({
@@ -580,24 +776,49 @@ export function InventoryManager() {
                 />
               </label>
             </div>
+
+            <div className="rounded-xl bg-blue-50 p-4 text-sm leading-5 text-blue-800">
+              Define la cantidad inicial y el nivel mínimo para detectar faltantes
+              de inventario.
+            </div>
+
             <button
-              className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white disabled:opacity-60"
+              className="w-full rounded-xl bg-[#F52727] px-5 py-3.5 font-bold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               disabled={isSaving}
               type="submit"
             >
               Registrar ingrediente
             </button>
-          </form>
+          </div>
+        </form>
 
-          <form
-            className="space-y-4 rounded-2xl bg-white p-5 shadow-sm"
-            onSubmit={saveRecipe}
-          >
-            <h2 className="text-xl font-bold">Configurar receta</h2>
-            <label className="block text-sm font-semibold">
+        {/* CONFIGURAR RECETA */}
+
+        <form
+          className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+          onSubmit={saveRecipe}
+        >
+          <div className="border-b border-slate-100 p-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-xl text-blue-600">
+                ≡
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-[#071C3B]">
+                  Configurar receta
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Asigna ingredientes y cantidades por presentación.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-5 p-6">
+            <label className="block text-sm font-semibold text-slate-700">
               Producto
               <select
-                className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2"
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-normal outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
                 onChange={(event) => {
                   const productId = event.target.value;
                   setSelectedProduct(productId);
@@ -615,11 +836,12 @@ export function InventoryManager() {
                 ))}
               </select>
             </label>
+
             {product && product.producto_tamanos.length > 0 && (
-              <label className="block text-sm font-semibold">
+              <label className="block text-sm font-semibold text-slate-700">
                 Presentación
                 <select
-                  className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2"
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-normal outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
                   onChange={(event) => {
                     const sizeId = event.target.value;
                     setSelectedSize(sizeId);
@@ -637,74 +859,109 @@ export function InventoryManager() {
                 </select>
               </label>
             )}
-            <div className="space-y-2">
-              {recipeLines.map((line, index) => (
-                <div
-                  className="grid grid-cols-[1fr_8rem_auto] gap-2"
-                  key={index}
-                >
-                  <select
-                    aria-label={`Ingrediente de receta ${index + 1}`}
-                    className="min-w-0 rounded-lg border border-stone-300 bg-white px-2 py-2"
-                    onChange={(event) =>
-                      moveLine(index, "ingredientId", event.target.value)
-                    }
-                    required
-                    value={line.ingredientId}
+
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-700">
+                  Ingredientes de la receta
+                </h3>
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                  {recipeLines.length} ingredientes
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {recipeLines.map((line, index) => (
+                  <div
+                    className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+                    key={index}
                   >
-                    <option value="">Ingrediente...</option>
-                    {data.ingredients.map((ingredient) => (
-                      <option
-                        key={ingredient.id_ingrediente}
-                        value={ingredient.id_ingrediente}
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Ingrediente {index + 1}
+                      </span>
+
+                      <button
+                        aria-label={`Quitar ingrediente ${index + 1}`}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-lg font-bold text-red-600 transition hover:bg-red-100"
+                        onClick={() =>
+                          setRecipeLines((current) =>
+                            current.filter((_, lineIndex) => lineIndex !== index),
+                          )
+                        }
+                        type="button"
                       >
-                        {ingredient.nombre} ({ingredient.unidad_medida})
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    aria-label={`Cantidad de receta ${index + 1}`}
-                    className="rounded-lg border border-stone-300 px-2 py-2"
-                    min="0.001"
-                    onChange={(event) =>
-                      moveLine(index, "quantity", event.target.value)
-                    }
-                    placeholder="Cantidad"
-                    required
-                    step="0.001"
-                    type="number"
-                    value={line.quantity}
-                  />
-                  <button
-                    aria-label={`Quitar ingrediente ${index + 1}`}
-                    className="rounded border border-stone-300 px-3"
-                    onClick={() =>
-                      setRecipeLines((current) =>
-                        current.filter((_, lineIndex) => lineIndex !== index),
-                      )
-                    }
-                    type="button"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
+                        ×
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
+                      <select
+                        aria-label={`Ingrediente de receta ${index + 1}`}
+                        className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                        onChange={(event) =>
+                          moveLine(index, "ingredientId", event.target.value)
+                        }
+                        required
+                        value={line.ingredientId}
+                      >
+                        <option value="">Selecciona ingrediente...</option>
+                        {data.ingredients.map((ingredient) => (
+                          <option
+                            key={ingredient.id_ingrediente}
+                            value={ingredient.id_ingrediente}
+                          >
+                            {ingredient.nombre} ({ingredient.unidad_medida})
+                          </option>
+                        ))}
+                      </select>
+
+                      <input
+                        aria-label={`Cantidad de receta ${index + 1}`}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                        min="0.001"
+                        onChange={(event) =>
+                          moveLine(index, "quantity", event.target.value)
+                        }
+                        placeholder="Cantidad"
+                        required
+                        step="0.001"
+                        type="number"
+                        value={line.quantity}
+                      />
+                    </div>
+                  </div>
+                ))}
+
+                {recipeLines.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center">
+                    <p className="text-sm font-semibold text-slate-600">
+                      No hay ingredientes en la receta.
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Agrega al menos un ingrediente para comenzar.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
+
+            <button
+              className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-700 transition hover:bg-blue-100"
+              onClick={() =>
+                setRecipeLines((current) => [
+                  ...current,
+                  { ingredientId: "", quantity: "" },
+                ])
+              }
+              type="button"
+            >
+              + Agregar ingrediente a receta
+            </button>
+
+            <div className="border-t border-slate-100 pt-4">
               <button
-                className="rounded border border-stone-300 px-3 py-2 font-semibold"
-                onClick={() =>
-                  setRecipeLines((current) => [
-                    ...current,
-                    { ingredientId: "", quantity: "" },
-                  ])
-                }
-                type="button"
-              >
-                Agregar ingrediente a receta
-              </button>
-              <button
-                className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white"
+                className="w-full rounded-xl bg-[#F52727] px-5 py-3.5 font-bold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={
                   data.ingredients.length === 0 ||
                   (Boolean(product?.producto_tamanos.length) && !selectedSize)
@@ -714,82 +971,152 @@ export function InventoryManager() {
                 Guardar receta
               </button>
             </div>
-          </form>
-        </div>
-
-        <section className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white p-5 shadow-sm">
-          <div>
-            <h2 className="font-bold">Productos agotados en menú público</h2>
-            <p className="text-sm text-stone-600">
-              Si se muestran, aparecerán con la etiqueta “Agotada” y no se
-              podrán agregar al carrito.
-            </p>
           </div>
+        </form>
+      </div>
+
+      {/* PRODUCTOS AGOTADOS */}
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-xl text-amber-600">
+              !
+            </div>
+
+            <div>
+              <h2 className="text-lg font-bold text-[#071C3B]">
+                Productos agotados en menú público
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                Configura si los productos agotados se mostrarán en el menú.
+                Cuando se muestran, aparecerán con la etiqueta “Agotada” y no
+                se podrán agregar al carrito.
+              </p>
+            </div>
+          </div>
+
           <button
             aria-pressed={data.showSoldOut}
-            className="rounded-lg border border-stone-300 px-4 py-2 font-semibold"
+            className={`shrink-0 rounded-xl px-5 py-3 text-sm font-bold transition focus:outline-none focus:ring-4 ${
+              data.showSoldOut
+                ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 focus:ring-emerald-500/20"
+                : "bg-slate-100 text-slate-700 hover:bg-slate-200 focus:ring-slate-500/20"
+            }`}
             onClick={() => void toggleSoldOut()}
             type="button"
           >
-            {data.showSoldOut ? "Se muestran agotados" : "Se ocultan agotados"}
+            {data.showSoldOut
+              ? "✓ Se muestran agotados"
+              : "Se ocultan agotados"}
           </button>
-        </section>
+        </div>
+      </section>
 
-        <section className="mt-6 rounded-2xl bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-bold">Movimientos de inventario</h2>
-          <p className="mt-1 text-sm text-stone-600">
-            Últimos 100 registros de entradas, ajustes y consumo por pedido.
-          </p>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[48rem] text-left text-sm">
-              <thead className="border-b border-stone-200 text-stone-500">
-                <tr>
-                  <th className="py-2">Fecha</th>
-                  <th>Ingrediente</th>
-                  <th>Movimiento</th>
-                  <th>Cantidad</th>
-                  <th>Stock resultante</th>
-                  <th>Origen / usuario</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.movements.map((movement) => (
-                  <tr
-                    className="border-b border-stone-100"
-                    key={movement.id_movimiento}
-                  >
-                    <td className="py-3">
-                      {new Date(movement.creado_en).toLocaleString("es-MX")}
-                    </td>
-                    <td className="font-semibold">
-                      {movement.ingredientes.nombre}
-                    </td>
-                    <td>{movement.tipo.replaceAll("_", " ")}</td>
-                    <td>
-                      {movement.cantidad} {movement.ingredientes.unidad_medida}
-                    </td>
-                    <td>
-                      {movement.stock_anterior} → {movement.stock_nuevo}
-                    </td>
-                    <td>
-                      {movement.pedidos
-                        ? `Pedido #${movement.pedidos.id_pedido}`
-                        : movement.usuarios?.name ?? movement.motivo ?? "Sistema"}
-                    </td>
-                  </tr>
-                ))}
-                {data.movements.length === 0 && (
-                  <tr>
-                    <td className="py-4 text-stone-500" colSpan={6}>
-                      Aún no hay movimientos registrados.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+      {/* HISTORIAL DE MOVIMIENTOS */}
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-slate-100 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-widest text-blue-600">
+              Registro de actividad
+            </span>
+            <h2 className="mt-2 text-xl font-bold text-[#071C3B]">
+              Movimientos de inventario
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Historial de entradas, ajustes y consumo por pedido.
+            </p>
           </div>
-        </section>
-      </div>
-    </main>
-  );
+
+          <span className="inline-flex w-fit rounded-full bg-slate-100 px-4 py-2 text-xs font-bold text-slate-600">
+            Últimos 100 registros
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[850px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+              <tr>
+                <th className="px-5 py-4 font-bold">Fecha</th>
+                <th className="px-5 py-4 font-bold">Ingrediente</th>
+                <th className="px-5 py-4 font-bold">Movimiento</th>
+                <th className="px-5 py-4 font-bold">Cantidad</th>
+                <th className="px-5 py-4 font-bold">Stock resultante</th>
+                <th className="px-5 py-4 font-bold">Origen / usuario</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-100">
+              {data.movements.map((movement) => (
+                <tr
+                  className="transition hover:bg-slate-50"
+                  key={movement.id_movimiento}
+                >
+                  <td className="whitespace-nowrap px-5 py-4 text-slate-500">
+                    {new Date(movement.creado_en).toLocaleString("es-MX")}
+                  </td>
+
+                  <td className="px-5 py-4 font-semibold text-[#071C3B]">
+                    {movement.ingredientes.nombre}
+                  </td>
+
+                  <td className="px-5 py-4">
+                    <span className="inline-flex rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
+                      {movement.tipo.replaceAll("_", " ")}
+                    </span>
+                  </td>
+
+                  <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-700">
+                    {movement.cantidad} {movement.ingredientes.unidad_medida}
+                  </td>
+
+                  <td className="whitespace-nowrap px-5 py-4">
+                    <span className="font-medium text-slate-500">
+                      {movement.stock_anterior}
+                    </span>
+                    <span className="mx-2 text-slate-300">→</span>
+                    <span className="font-bold text-[#071C3B]">
+                      {movement.stock_nuevo}
+                    </span>
+                  </td>
+
+                  <td className="px-5 py-4 text-slate-600">
+                    {movement.pedidos
+                      ? `Pedido #${movement.pedidos.id_pedido}`
+                      : movement.usuarios?.name ?? movement.motivo ?? "Sistema"}
+                  </td>
+                </tr>
+              ))}
+
+              {data.movements.length === 0 && (
+                <tr>
+                  <td className="px-6 py-12 text-center" colSpan={6}>
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl text-slate-400">
+                      ≡
+                    </div>
+                    <p className="mt-4 font-semibold text-slate-700">
+                      Aún no hay movimientos registrados
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Los movimientos aparecerán aquí cuando se registren entradas,
+                      ajustes o consumos.
+                    </p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="border-t border-slate-100 bg-slate-50 px-6 py-3">
+          <p className="text-xs text-slate-500">
+            Pizzería Planeta · Historial de movimientos de inventario
+          </p>
+        </div>
+      </section>
+
+    </div>
+  </main>
+);
 }
