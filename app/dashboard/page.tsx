@@ -16,7 +16,7 @@ export default async function DashboardPage() {
 
   const menuItems = [
     { label: "Comandas", href: "/orders", show: true },
-    { label: "Nueva venta", href: "/orders", show: true },
+    { label: "Nueva venta", href: "/", show: true },
     { label: "Pagos", href: "/payment-settings", show: isAdmin },
     { label: "Inventario", href: "/inventory", show: isAdmin },
     { label: "Catálogo", href: "/catalog", show: true },
@@ -40,7 +40,7 @@ export default async function DashboardPage() {
       description: isAdmin
         ? "Administra categorías y productos."
         : "Consulta los productos disponibles.",
-      href: "/catalog",
+      href: "/catalog", 
       button: "VER",
       color: "bg-[#3282F6]",
     },
