@@ -1,8 +1,12 @@
 type IngredientInput = {
   name: string;
+  description: string | null;
   unit: string;
   stock: number;
   minimumStock: number;
+  type: "INGREDIENTE" | "CONSUMIBLE";
+  extraPrice: number;
+  extraQuantity: number;
 };
 
 type RecipeComponentInput = {
@@ -62,6 +66,31 @@ const parseIngredientInput = (
       message: "La unidad debe ser g, kg, ml, l o pieza.",
     };
   }
+  const description =
+    value.description === null || value.description === undefined
+      ? null
+      : typeof value.description === "string" &&
+          value.description.trim().length <= 255
+        ? value.description.trim() || null
+        : undefined;
+  if (description === undefined) {
+    return {
+      success: false,
+      message: "La descripción no puede superar 255 caracteres.",
+    };
+  }
+  const type =
+    value.type === undefined || value.type === "INGREDIENTE"
+      ? "INGREDIENTE"
+      : value.type === "CONSUMIBLE"
+        ? "CONSUMIBLE"
+        : null;
+  if (type === null) {
+    return {
+      success: false,
+      message: "El tipo debe ser ingrediente o consumible.",
+    };
+  }
   const stock = parseStockValue(value.stock, "stock");
   if (stock === null) {
     return {
@@ -76,14 +105,40 @@ const parseIngredientInput = (
       message: "El mínimo debe ser un valor no negativo con hasta tres decimales.",
     };
   }
+  const extraPrice =
+    value.extraPrice === undefined ? 0 : parseStockValue(value.extraPrice, "extraPrice");
+  if (
+    extraPrice === null ||
+    extraPrice > 99_999_999.99 ||
+    Math.abs(extraPrice * 100 - Math.round(extraPrice * 100)) > 0.0000001
+  ) {
+    return {
+      success: false,
+      message: "El precio extra debe ser no negativo y tener hasta dos decimales.",
+    };
+  }
+  const extraQuantity =
+    value.extraQuantity === undefined
+      ? 1
+      : parseStockValue(value.extraQuantity, "extraQuantity");
+  if (extraQuantity === null || extraQuantity === 0) {
+    return {
+      success: false,
+      message: "La cantidad de ingrediente extra debe ser positiva.",
+    };
+  }
 
   return {
     success: true,
     data: {
       name: value.name.trim(),
+      description,
       unit: value.unit,
       stock,
       minimumStock,
+      type,
+      extraPrice,
+      extraQuantity,
     },
   };
 };
@@ -105,12 +160,11 @@ const parseRecipeInput = (value: unknown): ValidationResult<RecipeInput> => {
   }
   if (
     !Array.isArray(value.ingredients) ||
-    value.ingredients.length === 0 ||
     value.ingredients.length > 100
   ) {
     return {
       success: false,
-      message: "La receta debe tener entre 1 y 100 ingredientes.",
+      message: "La receta puede tener hasta 100 ingredientes.",
     };
   }
 

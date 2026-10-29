@@ -18,6 +18,7 @@ import type {
   ProductInput,
   SizeInput,
 } from "@/validators/catalog-validator";
+import { containsForbiddenText } from "@/services/profanity-service";
 
 class CatalogServiceError extends Error {
   constructor(
@@ -103,6 +104,15 @@ const validateProductReferences = async (
 };
 
 const addProduct = async (data: ProductInput) => {
+  if (
+    (await containsForbiddenText(data.name)) ||
+    (data.description && (await containsForbiddenText(data.description)))
+  ) {
+    throw new CatalogServiceError(
+      "El nombre o la descripción contiene una palabra no permitida.",
+      422,
+    );
+  }
   await validateProductReferences(data, null);
   return createProduct(data);
 };
@@ -111,6 +121,15 @@ const editProduct = async (id: number, data: ProductInput) => {
   const existingProduct = await findProductById(id);
   if (!existingProduct) {
     throw new CatalogServiceError("El producto no existe.", 404);
+  }
+  if (
+    (await containsForbiddenText(data.name)) ||
+    (data.description && (await containsForbiddenText(data.description)))
+  ) {
+    throw new CatalogServiceError(
+      "El nombre o la descripción contiene una palabra no permitida.",
+      422,
+    );
   }
 
   await validateProductReferences(

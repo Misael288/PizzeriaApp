@@ -12,6 +12,7 @@ type GuestOrderItemInput = {
   productId: number;
   sizeId: number | null;
   quantity: number;
+  extraIngredientIds: number[];
 };
 
 type GuestOrderInput = {
@@ -140,7 +141,34 @@ const parseGuestOrderInput = (
       };
     }
 
-    const key = `${productId}:${sizeId ?? "none"}`;
+    let extraIngredientIds: number[] = [];
+    if (entry.extraIngredientIds !== undefined) {
+      if (
+        !Array.isArray(entry.extraIngredientIds) ||
+        entry.extraIngredientIds.length > 20
+      ) {
+        return {
+          success: false,
+          message: `Los extras del producto ${index + 1} no son válidos.`,
+        };
+      }
+      extraIngredientIds = [];
+      for (const extraId of entry.extraIngredientIds) {
+        const id = parsePositiveInteger(extraId);
+        if (id === null || extraIngredientIds.includes(id)) {
+          return {
+            success: false,
+            message: `Los extras del producto ${index + 1} contienen una referencia repetida o inválida.`,
+          };
+        }
+        extraIngredientIds.push(id);
+      }
+    }
+
+    const key = `${productId}:${sizeId ?? "none"}:${extraIngredientIds
+      .slice()
+      .sort((left, right) => left - right)
+      .join(",")}`;
     if (uniqueItems.has(key)) {
       return {
         success: false,
@@ -148,7 +176,7 @@ const parseGuestOrderInput = (
       };
     }
     uniqueItems.add(key);
-    items.push({ productId, sizeId, quantity });
+    items.push({ productId, sizeId, quantity, extraIngredientIds });
   }
 
   return {

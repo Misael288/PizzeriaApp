@@ -24,6 +24,7 @@ const listPublicProducts = () =>
     select: {
       id_producto: true,
       id_categoria: true,
+      tipo_producto: true,
       nombre: true,
       descripcion: true,
       precio: true,
@@ -208,11 +209,41 @@ const createGuestOrder = (
       throw new Error("ORDER_PRODUCT_UNAVAILABLE");
     }
 
+    const extraIds = [
+      ...new Set(data.items.flatMap((item) => item.extraIngredientIds)),
+    ];
+    const extraIngredients = extraIds.length
+      ? await transaction.ingredientes.findMany({
+          where: {
+            id_ingrediente: { in: extraIds },
+            tipo: "INGREDIENTE",
+            activo: true,
+            bloqueado: false,
+            stock_actual: { gt: 0 },
+          },
+          select: {
+            id_ingrediente: true,
+            nombre: true,
+            descripcion: true,
+            precio_extra: true,
+            cantidad_extra: true,
+            stock_actual: true,
+            stock_minimo: true,
+          },
+        })
+      : [];
+    if (extraIngredients.length !== extraIds.length) {
+      throw new Error("ORDER_EXTRA_UNAVAILABLE");
+    }
+
     const lines = data.items.map((item) => {
       const product = products.find(
         (entry) => entry.id_producto === item.productId,
       );
       if (!product) throw new Error("ORDER_PRODUCT_UNAVAILABLE");
+      if (item.extraIngredientIds.length > 0 && product.tipo_producto !== "PIZZA") {
+        throw new Error("ORDER_EXTRA_NOT_ALLOWED");
+      }
 
       let unitPrice = product.precio;
       if (item.sizeId !== null) {
@@ -225,11 +256,28 @@ const createGuestOrder = (
         throw new Error("ORDER_SIZE_REQUIRED");
       }
 
+      const selectedExtras = item.extraIngredientIds.map((id) => {
+        const ingredient = extraIngredients.find(
+          (entry) => entry.id_ingrediente === id,
+        );
+        if (
+          !ingredient ||
+          !ingredient.stock_actual.greaterThan(ingredient.stock_minimo)
+        ) {
+          throw new Error("ORDER_EXTRA_UNAVAILABLE");
+        }
+        return ingredient;
+      });
+      const extraPrice = selectedExtras.reduce(
+        (sum, ingredient) => sum.add(ingredient.precio_extra),
+        new Prisma.Decimal(0),
+      );
       return {
         id_producto: product.id_producto,
         id_tamano: item.sizeId,
         cantidad: item.quantity,
-        precio_unitario: unitPrice,
+        precio_unitario: new Prisma.Decimal(unitPrice).add(extraPrice),
+        extras: selectedExtras,
       };
     });
 
@@ -277,7 +325,23 @@ const createGuestOrder = (
         id_metodo_pago_previsto: paymentMethod.id_metodo_pago,
         prioridad: "NORMAL",
         token_seguimiento_hash: trackingTokenHash,
-        detalle_pedido: { create: lines },
+        detalle_pedido: {
+          create: lines.map((line) => ({
+            id_producto: line.id_producto,
+            id_tamano: line.id_tamano,
+            cantidad: line.cantidad,
+            precio_unitario: line.precio_unitario,
+            detalle_pedido_ingredientes: {
+              create: line.extras.map((ingredient) => ({
+                id_ingrediente: ingredient.id_ingrediente,
+                cantidad: ingredient.cantidad_extra,
+                precio_extra: ingredient.precio_extra,
+                nombre_ingrediente: ingredient.nombre,
+                descripcion_ingrediente: ingredient.descripcion,
+              })),
+            },
+          })),
+        },
       },
       select: { id_pedido: true, fecha: true, total: true },
     });
@@ -307,6 +371,14 @@ const findOrderByTrackingHash = (trackingTokenHash: string) =>
           precio_unitario: true,
           productos: { select: { nombre: true } },
           tamanos: { select: { nombre: true } },
+          detalle_pedido_ingredientes: {
+            select: {
+              precio_extra: true,
+              nombre_ingrediente: true,
+              descripcion_ingrediente: true,
+              ingredientes: { select: { nombre: true, descripcion: true } },
+            },
+          },
         },
       },
     },
@@ -346,6 +418,13 @@ const listActiveOrders = () =>
         include: {
           productos: { select: { nombre: true } },
           tamanos: { select: { nombre: true } },
+          detalle_pedido_ingredientes: {
+            include: {
+              ingredientes: {
+                select: { nombre: true, descripcion: true },
+              },
+            },
+          },
         },
       },
     },
@@ -401,6 +480,15 @@ const confirmOrderAndDeductInventory = async (
                 categorias: { select: { activo: true } },
               },
             },
+            detalle_pedido_ingredientes: {
+              select: {
+                id_ingrediente: true,
+                cantidad: true,
+                ingredientes: {
+                  select: { bloqueado: true, activo: true, tipo: true },
+                },
+              },
+            },
           },
         },
       },
@@ -422,7 +510,9 @@ const confirmOrderAndDeductInventory = async (
             : { OR: [{ id_tamano: item.id_tamano }, { id_tamano: null }] }),
         },
         include: {
-          ingredientes: { select: { bloqueado: true } },
+          ingredientes: {
+            select: { bloqueado: true, activo: true, tipo: true },
+          },
         },
       });
       const variantRows =
@@ -438,13 +528,32 @@ const confirmOrderAndDeductInventory = async (
       }
 
       for (const recipe of applicableRows) {
-        if (recipe.ingredientes.bloqueado) {
+        if (
+          recipe.ingredientes.bloqueado ||
+          !recipe.ingredientes.activo ||
+          recipe.ingredientes.tipo !== "INGREDIENTE"
+        ) {
           throw new Error("ORDER_INGREDIENT_BLOCKED");
         }
         const required = recipe.cantidad_requerida.mul(item.cantidad);
         requiredByIngredient.set(
           recipe.id_ingrediente,
           (requiredByIngredient.get(recipe.id_ingrediente) ??
+            new Prisma.Decimal(0)).add(required),
+        );
+      }
+      for (const extra of item.detalle_pedido_ingredientes) {
+        if (
+          extra.ingredientes.bloqueado ||
+          !extra.ingredientes.activo ||
+          extra.ingredientes.tipo !== "INGREDIENTE"
+        ) {
+          throw new Error("ORDER_INGREDIENT_BLOCKED");
+        }
+        const required = extra.cantidad.mul(item.cantidad);
+        requiredByIngredient.set(
+          extra.id_ingrediente,
+          (requiredByIngredient.get(extra.id_ingrediente) ??
             new Prisma.Decimal(0)).add(required),
         );
       }
@@ -457,6 +566,8 @@ const confirmOrderAndDeductInventory = async (
         SET "stock_actual" = "stock_actual" - ${required}
         WHERE "id_ingrediente" = ${ingredientId}
           AND "bloqueado" = false
+          AND "activo" = true
+          AND "tipo" = 'INGREDIENTE'
           AND "stock_actual" > "stock_minimo"
           AND "stock_actual" >= ${required}
         RETURNING "stock_actual"`;

@@ -75,6 +75,7 @@ const createProduct = (data: ProductInput) =>
     const product = await transaction.productos.create({
       data: {
         id_categoria: data.categoryId,
+        tipo_producto: data.productType,
         nombre: data.name,
         descripcion: data.description,
         precio: data.sizes.length
@@ -104,6 +105,7 @@ const updateProduct = (id: number, data: ProductInput) =>
       where: { id_producto: id },
       data: {
         id_categoria: data.categoryId,
+        tipo_producto: data.productType,
         nombre: data.name,
         descripcion: data.description,
         precio: data.sizes.length
@@ -132,7 +134,12 @@ const updateProduct = (id: number, data: ProductInput) =>
 const findProductById = (id: number) =>
   prisma.productos.findUnique({
     where: { id_producto: id },
-    select: { id_producto: true, id_categoria: true, imagen: true },
+    select: {
+      id_producto: true,
+      id_categoria: true,
+      tipo_producto: true,
+      imagen: true,
+    },
   });
 
 export {

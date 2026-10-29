@@ -1,7 +1,9 @@
 import {
   createIngredient,
+  deleteUnusedIngredient,
   getShowSoldOutSetting,
   listIngredients,
+  listAvailableExtraIngredients,
   listInventoryCatalog,
   listRecentInventoryMovements,
   listProductsForRecipe,
@@ -9,12 +11,14 @@ import {
   replaceRecipe,
   saveShowSoldOutSetting,
   updateIngredient,
+  updateIngredientActive,
   updateProductAvailability,
 } from "@/repositories/inventory-repository";
 import type {
   IngredientInput,
   RecipeInput,
 } from "@/validators/inventory-validator";
+import { containsForbiddenText } from "@/services/profanity-service";
 
 class InventoryServiceError extends Error {
   constructor(
@@ -48,6 +52,8 @@ const isSizeAvailable = (
     recipe.every(
       (line) =>
         !line.ingredientes.bloqueado &&
+        line.ingredientes.activo &&
+        line.ingredientes.tipo === "INGREDIENTE" &&
         line.ingredientes.stock_actual.greaterThan(
           line.ingredientes.stock_minimo,
         ) &&
@@ -72,6 +78,22 @@ const getProductAvailability = (product: InventoryProduct) => {
             available: product.disponible && isSizeAvailable(product, null),
           },
         ];
+  if (product.tipo_producto === "REFRESCO") {
+    const drinkSizes =
+        product.producto_tamanos.length > 0
+          ? product.producto_tamanos.map((size) => ({
+              sizeId: size.id_tamano,
+              available: product.disponible,
+            }))
+          : [{ sizeId: null, available: product.disponible }];
+    return {
+        productId: product.id_producto,
+        manuallyEnabled: product.disponible,
+        available: product.disponible,
+        recipeConfigured: true,
+        sizes: drinkSizes,
+    };
+  }
   return {
     productId: product.id_producto,
     manuallyEnabled: product.disponible,
@@ -97,10 +119,33 @@ const getInventoryOverview = async (includeMovements = true) => {
       includeMovements ? listRecentInventoryMovements() : Promise.resolve([]),
       getShowSoldOutSetting(),
     ]);
+  const namesByNormalized = new Map<
+    string,
+    { id: number; name: string }[]
+  >();
+  for (const ingredient of ingredients) {
+    const normalized = ingredient.nombre
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .replace(/\s+/g, "")
+      .toLocaleLowerCase("es-MX");
+    namesByNormalized.set(normalized, [
+      ...(namesByNormalized.get(normalized) ?? []),
+      { id: ingredient.id_ingrediente, name: ingredient.nombre },
+    ]);
+  }
+  const duplicateIngredientNames = [...namesByNormalized.values()]
+    .filter((names) => names.length > 1)
+    .map((names) =>
+      names.map((entry) => `${entry.name} (#${entry.id})`).join(", "),
+    );
 
   return {
     ingredients: ingredients.map((ingredient) => ({
       ...ingredient,
+      precio_extra: ingredient.precio_extra.toString(),
+      cantidad_extra: ingredient.cantidad_extra.toString(),
       stock_actual: ingredient.stock_actual.toString(),
       stock_minimo: ingredient.stock_minimo.toString(),
       lowStock: ingredient.stock_actual.lessThanOrEqualTo(
@@ -120,6 +165,7 @@ const getInventoryOverview = async (includeMovements = true) => {
       creado_en: movement.creado_en.toISOString(),
     })),
     availability: catalog.map(getProductAvailability),
+    duplicateIngredientNames,
     showSoldOut,
   };
 };
@@ -132,16 +178,35 @@ const getCashierAvailability = async () => {
       id: ingredient.id_ingrediente,
       name: ingredient.nombre,
       unit: ingredient.unidad_medida,
-      available: !ingredient.bloqueado && Number(ingredient.stock_actual) > 0,
+      available:
+        ingredient.tipo === "INGREDIENTE" &&
+        ingredient.activo &&
+        !ingredient.bloqueado &&
+        Number(ingredient.stock_actual) > 0,
       lowStock: ingredient.lowStock,
     })),
   };
 };
 
 const addIngredient = async (data: IngredientInput, userId: number) => {
+  if (
+    (await containsForbiddenText(data.name)) ||
+    (data.description && (await containsForbiddenText(data.description)))
+  ) {
+    throw new InventoryServiceError(
+      "El nombre o la descripción contiene una palabra no permitida.",
+      422,
+    );
+  }
   try {
     return await createIngredient(data, userId);
   } catch (error: unknown) {
+    if (error instanceof Error && error.message === "INGREDIENT_NAME_DUPLICATE") {
+      throw new InventoryServiceError(
+        "Ya existe un ingrediente o consumible con ese nombre.",
+        409,
+      );
+    }
     if (
       typeof error === "object" &&
       error !== null &&
@@ -162,6 +227,15 @@ const editIngredient = async (
   data: IngredientInput,
   userId: number,
 ) => {
+  if (
+    (await containsForbiddenText(data.name)) ||
+    (data.description && (await containsForbiddenText(data.description)))
+  ) {
+    throw new InventoryServiceError(
+      "El nombre o la descripción contiene una palabra no permitida.",
+      422,
+    );
+  }
   try {
     const ingredient = await updateIngredient(id, data, userId);
     if (!ingredient) {
@@ -169,6 +243,24 @@ const editIngredient = async (
     }
     return ingredient;
   } catch (error: unknown) {
+    if (error instanceof Error && error.message === "INGREDIENT_UNIT_IN_USE") {
+      throw new InventoryServiceError(
+        "No se puede cambiar la unidad porque el ingrediente está incluido en recetas.",
+        409,
+      );
+    }
+    if (error instanceof Error && error.message === "INGREDIENT_USED_IN_RECIPE") {
+      throw new InventoryServiceError(
+        "No se puede cambiar a consumible porque el ingrediente pertenece a una receta. Primero elimínalo de las recetas.",
+        409,
+      );
+    }
+    if (error instanceof Error && error.message === "INGREDIENT_NAME_DUPLICATE") {
+      throw new InventoryServiceError(
+        "Ya existe un ingrediente o consumible con ese nombre.",
+        409,
+      );
+    }
     if (
       error instanceof InventoryServiceError ||
       (typeof error === "object" &&
@@ -184,6 +276,60 @@ const editIngredient = async (
     }
     throw error;
   }
+};
+
+const setIngredientActive = async (id: number, active: boolean) => {
+  const result = await updateIngredientActive(id, active);
+  if (result.count !== 1) {
+    throw new InventoryServiceError("El ingrediente no existe.", 404);
+  }
+  return { active };
+};
+
+const removeUnusedIngredient = async (id: number) => {
+  let result: Awaited<ReturnType<typeof deleteUnusedIngredient>>;
+  try {
+    result = await deleteUnusedIngredient(id);
+  } catch (error: unknown) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "P2003"
+    ) {
+      throw new InventoryServiceError(
+        "El ingrediente tiene información asociada y no puede eliminarse. Desactívalo para conservar el historial.",
+        409,
+      );
+    }
+    throw error;
+  }
+  if (result === "NOT_FOUND") {
+    throw new InventoryServiceError("El ingrediente no existe.", 404);
+  }
+  if (result === "IN_USE") {
+    throw new InventoryServiceError(
+      "No se puede eliminar porque tiene recetas, movimientos o pedidos asociados. Desactívalo para conservar el historial.",
+      409,
+    );
+  }
+  return { deleted: true };
+};
+
+const getAvailableExtraIngredients = async () => {
+  const ingredients = await listAvailableExtraIngredients();
+  return ingredients
+    .filter((ingredient) =>
+      ingredient.stock_actual.greaterThan(ingredient.stock_minimo),
+    )
+    .map((ingredient) => ({
+      id: ingredient.id_ingrediente,
+      name: ingredient.nombre,
+      description: ingredient.descripcion,
+      unit: ingredient.unidad_medida,
+      extraPrice: ingredient.precio_extra.toString(),
+      extraQuantity: ingredient.cantidad_extra.toString(),
+    }));
 };
 
 const saveRecipe = async (productId: number, data: RecipeInput) => {
@@ -252,11 +398,14 @@ const setProductAvailability = async (
 export {
   InventoryServiceError,
   addIngredient,
+  getAvailableExtraIngredients,
   editIngredient,
   getAvailabilityForProduct,
   getCashierAvailability,
   getInventoryOverview,
   saveRecipe,
+  removeUnusedIngredient,
+  setIngredientActive,
   setProductAvailability,
   updateSoldOutVisibility,
 };

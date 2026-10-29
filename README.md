@@ -62,6 +62,23 @@ Remove-Item Env:BOOTSTRAP_TOKEN
 
 El endpoint crea los roles `ADMIN` y `CASHIER`, así como la cuenta inicial de cada rol. Solo funciona con el token configurado y devuelve conflicto si ya existe un administrador. Tras crear las cuentas, elimina del `.env.local` las variables `BOOTSTRAP_TOKEN` e `INITIAL_*` y reinicia la aplicación.
 
+## Recuperar acceso de administrador
+
+Requiere Node 22.18+ (ejecuta TypeScript directamente) y acceso local al `.env.local`. En PowerShell, dentro de `pizzeria-app`:
+
+```powershell
+# 1) Listar cuentas (correo, rol, activo)
+node --env-file=.env.local prisma/recover-admin.mts
+
+# 2) Restablecer o crear un ADMIN (mínimo 14 caracteres)
+$env:RECOVER_EMAIL = "admin@tu-dominio.com"
+$env:RECOVER_PASSWORD = Read-Host "Nueva contraseña"
+node --env-file=.env.local prisma/recover-admin.mts
+Remove-Item Env:RECOVER_EMAIL, Env:RECOVER_PASSWORD
+```
+
+El script activa la cuenta, la deja como `ADMIN` y cierra sus sesiones. Si el correo no existe, crea la cuenta.
+
 ## Autenticación
 
 - Visita `/login` para iniciar sesión.
@@ -77,13 +94,17 @@ El endpoint crea los roles `ADMIN` y `CASHIER`, así como la cuenta inicial de c
 
 - Visita `/catalog` con una sesión administrativa.
 - `ADMIN` puede mantener categorías, productos, disponibilidad y tamaños/presentaciones.
+- El catálogo separa pizzas y refrescos en pestañas. Los productos existentes se clasifican inicialmente como pizza para conservar compatibilidad; edita cada refresco existente y cambia su tipo antes de operar el nuevo inventario.
 - `CASHIER` consulta el catálogo y puede marcar disponibilidad manual cuando la receta y el stock lo permiten; todas las demás mutaciones del catálogo se limitan a `ADMIN` también desde la API.
 - Cada bebida se registra como producto independiente y sus presentaciones/precios como tamaños. Los tamaños se agregan manualmente en el catálogo.
 - `ADMIN` importa imagen PNG, JPEG o WebP de hasta 5 MB desde el formulario. El servidor valida la firma del archivo y genera un nombre aleatorio; solo se guarda la ruta en `productos.imagen`. Los archivos locales subidos están excluidos de Git.
 - Los productos sin presentaciones usan un precio único. Para un producto con presentaciones, `productos.precio` conserva el menor precio variante como precio base compatible con el esquema actual; los precios que se muestran y utilizan por presentación vienen de `producto_tamanos.precio`.
 - Desactivar una categoría o marcar un producto no disponible conserva sus relaciones históricas. No se borran físicamente registros del catálogo.
 - El backend valida límites de campos, importes de hasta dos decimales, categoría activa y referencias de tamaño.
+- Los nombres y descripciones de productos se validan contra la lista de palabras administrada en `/admin/settings`.
 - API: `GET/POST /api/catalog/categories`, `PUT /api/catalog/categories/:id`, `GET/POST /api/catalog/products`, `PUT /api/catalog/products/:id`, `GET/POST /api/catalog/sizes` y `POST /api/catalog/images` (ADMIN).
+- API de inventario: `GET/POST /api/inventory`, `PUT/PATCH/DELETE /api/inventory/ingredients/:id`, y `PUT /api/inventory/recipes/:productId`. El borrado del ingrediente devuelve conflicto si hay historial o relaciones; la desactivación se realiza con `PATCH { "active": false }`.
+- Palabras no permitidas: `GET/PATCH /api/admin/profanity` (ADMIN). La lista no se incluye en el menú público.
 - El diseño carga Bootstrap 5 solo bajo `/catalog`; Tailwind se conserva en las páginas actuales hasta una futura migración global.
 - El almacenamiento bajo `public/uploads/products` es adecuado para desarrollo/local. En producción desplegada en instancias efímeras deberá cambiarse por almacenamiento persistente de objetos, por ejemplo un servicio compatible con S3 o Blob Storage.
 
@@ -93,7 +114,8 @@ El endpoint crea los roles `ADMIN` y `CASHIER`, así como la cuenta inicial de c
 - En checkout, el cliente elige el método de pago previsto. Esa selección no representa pago recibido. Al elegir Transferencia se cargan y muestran los datos configurados por ADMIN en `/payment-settings`; no se incluyen en la carga inicial del menú. El registro del pedido conserva la selección por separado del método confirmado.
 - El cliente puede adjuntar o reemplazar un comprobante opcional desde su enlace privado de seguimiento. Se aceptan JPG/PNG/PDF de hasta 5 MB, se valida la firma del archivo y el contenido se guarda fuera de `public/`. Solo ADMIN/Caja puede leerlo. Enviar un comprobante no marca el pedido pagado; Caja registra el pago después de verificar el ingreso bancario o el comprobante.
 - El ticket de pago se imprime manualmente desde Caja y desde el seguimiento privado del cliente después de registrar el pago; incluye fecha, método, artículos y total. El cliente también ve un QR de seguimiento al enviar el pedido y en su ticket. El seguimiento del cliente no expone datos personales ni el identificador interno del pedido. La impresión usa el navegador (incluida la opción de guardar como PDF) y no se abre automáticamente.
-- El checkout solicita nombre, teléfono y modalidad de entrega; la dirección solo se solicita para entrega a domicilio. No se crea una cuenta de cliente.
+- El checkout solicita nombre, teléfono y modalidad de entrega; la dirección solo se solicita para entrega a domicilio. No se crea una cuenta de cliente. Los nombres y direcciones se validan contra la lista de palabras administrada por ADMIN.
+- En las pizzas se pueden elegir ingredientes extra. La aplicación calcula el recargo con el precio configurado del ingrediente en el servidor, guarda el extra en el detalle del pedido y descuenta su cantidad de inventario al confirmar. Los extras y sus descripciones se muestran en el carrito, seguimiento y comanda.
 - Para conservar la restricción CHECK del esquema PostgreSQL existente, el backend guarda `DOMICILIO` como `Domicilio` y `RECOGER` como `Llevar`; la interfaz vuelve a normalizar esos valores. Los pedidos históricos `Local` se siguen mostrando como consumo local.
 - Después de enviar el pedido se entrega una URL privada de seguimiento en `/pedido/seguimiento/<token>` y un QR que codifica esa misma URL. El token es una credencial secreta: compártelo únicamente con el cliente. La base de datos conserva su hash; no se ofrece búsqueda por número de pedido o código predecible.
 - Un pedido nuevo queda pendiente de aceptación de Caja. No inicia su ETA ni consume ingredientes hasta confirmarlo. La página pública de seguimiento explica esa espera; después muestra el ETA aproximado y consulta cambios cada 10 segundos y al recuperar el foco/la visibilidad de la pestaña. Cuando Caja registra el pago, esa página muestra el pago y habilita el ticket imprimible.
@@ -103,9 +125,12 @@ El endpoint crea los roles `ADMIN` y `CASHIER`, así como la cuenta inicial de c
 
 ## Inventario y recetas
 
-- `/inventory` es exclusivo de ADMIN. Registra ingredientes con unidad, stock mínimo y existencia; permite ajustar existencias, consultar los últimos 100 movimientos y asignar cantidades de receta por presentación.
+- `/inventory` es exclusivo de ADMIN. Registra ingredientes o consumibles/refrescos en existencias separadas; permite ajustar existencias, consultar los últimos 100 movimientos y asignar cantidades de receta. Los consumibles no aparecen en los selectores de receta ni como ingredientes extra.
+- Los ingredientes incluyen descripción, precio del extra y cantidad consumida por extra. Se impiden nombres duplicados ignorando acentos, mayúsculas y espacios; los duplicados que ya existían se señalan para revisión sin combinar su historial. Los ingredientes se pueden desactivar/reactivar y eliminar físicamente solo cuando no tienen recetas, movimientos ni pedidos asociados; de lo contrario, se debe desactivar.
+- Una receta guardada en “Todos los tamaños” sirve como receta general para las presentaciones. Una receta específica sigue teniendo prioridad para esa presentación. Se pueden quitar todos los componentes y guardar la receta vacía para retirar su configuración.
 - La disponibilidad efectiva requiere que el producto esté habilitado y cuente con receta aplicable e ingredientes no bloqueados, sobre el stock mínimo y con cantidad suficiente. Al confirmar el pedido, Caja descuenta los ingredientes dentro de la misma transacción y registra movimientos; una cancelación antes de empezar preparación repone ese stock automáticamente. Después de empezar preparación no se repone automáticamente.
 - En instalaciones con productos existentes, el inventario inicia sin recetas y no debe asumirse disponibilidad hasta cargar existencias y recetas correctas. Configura `/inventory` antes de aceptar pedidos reales. Una receta general se usa como respaldo cuando una presentación no tiene receta específica.
+- `/admin/settings` permite a ADMIN mantener hasta 30 palabras no permitidas (una por línea); se aplican sin distinguir mayúsculas, acentos ni signos separadores a nombres/descripciones de productos e ingredientes y al nombre/dirección capturados en pedidos.
 - Los clientes pueden ver la etiqueta “Agotada” o no ver esos productos según la opción de `/inventory`. El estado manual del producto no puede anular la falta de receta o de stock.
 
 ## Comprobantes y despliegue
@@ -116,6 +141,7 @@ El endpoint crea los roles `ADMIN` y `CASHIER`, así como la cuenta inicial de c
 ## Actualizar la base de datos
 
 - Los cambios de inventario y operación requieren columnas y tablas nuevas en Prisma. Antes de aplicar en una base existente, ejecuta `npm run prisma:validate` y `npm run prisma:generate`, revisa el SQL de migración contra una copia de la base y respalda los datos. No ejecutes `prisma db push` en producción sin revisión explícita, y nunca uses `--accept-data-loss`.
+- Las nuevas columnas de ingredientes/productos y los datos de extras se agregan con valores por defecto compatibles con registros existentes. Tras actualizar el esquema en desarrollo, revisa el tipo de cada producto existente en `/catalog` y configura descripción, precio y cantidad de extra de los ingredientes en `/inventory`. No apliques el cambio a producción sin revisar el impacto y respaldar la base.
 - La aplicación no crea automáticamente ingredientes ni recetas de ejemplo; deben configurarse con datos reales del negocio. Los métodos de pago se inicializan como Efectivo y Tarjeta cuando aún no existe ninguno.
 - Al actualizar el esquema, ejecuta `npm run prisma:validate` y revisa cuidadosamente cualquier cambio antes de `npm run prisma:push`. Las columnas nuevas para pedidos son compatibles con los registros existentes; no uses opciones de pérdida de datos.
 - Si aparece `No fue posible completar la operación del pedido.`, revisa la consola del servidor Next.js para el error técnico asociado; el mensaje público no expone detalles de base de datos. Para un rechazo conocido de `tipo_entrega`, el API informa una discrepancia de esquema de forma explícita en lugar del error genérico.

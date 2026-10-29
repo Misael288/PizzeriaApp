@@ -11,6 +11,7 @@ type ProductSizeInput = {
 
 type ProductInput = {
   categoryId: number;
+  productType: "PIZZA" | "REFRESCO";
   name: string;
   description: string | null;
   image: string | null;
@@ -160,6 +161,19 @@ const parseProductInput = (value: unknown): ValidationResult<ProductInput> => {
     return { success: false, message: categoryId.message };
   }
 
+  const productType =
+    value.productType === undefined || value.productType === "PIZZA"
+      ? "PIZZA"
+      : value.productType === "REFRESCO"
+        ? "REFRESCO"
+        : null;
+  if (productType === null) {
+    return {
+      success: false,
+      message: "El tipo de producto debe ser pizza o refresco.",
+    };
+  }
+
   const name = parseText(value.name, "El nombre", 100, true);
   if (!name.success) return { success: false, message: name.message };
   if (!name.data) {
@@ -249,6 +263,7 @@ const parseProductInput = (value: unknown): ValidationResult<ProductInput> => {
     success: true,
     data: {
       categoryId: categoryId.data,
+      productType,
       name: name.data,
       description: description.data,
       image: image.data,

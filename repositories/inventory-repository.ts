@@ -12,10 +12,15 @@ const listIngredients = () =>
     select: {
       id_ingrediente: true,
       nombre: true,
+      descripcion: true,
       unidad_medida: true,
+      precio_extra: true,
+      cantidad_extra: true,
       stock_actual: true,
       stock_minimo: true,
       bloqueado: true,
+      activo: true,
+      tipo: true,
     },
   });
 
@@ -45,6 +50,7 @@ const listInventoryCatalog = () =>
     select: {
       id_producto: true,
       nombre: true,
+      tipo_producto: true,
       disponible: true,
       categorias: { select: { nombre: true } },
       producto_tamanos: {
@@ -67,6 +73,8 @@ const listInventoryCatalog = () =>
               stock_actual: true,
               stock_minimo: true,
               bloqueado: true,
+              activo: true,
+              tipo: true,
             },
           },
         },
@@ -76,6 +84,7 @@ const listInventoryCatalog = () =>
 
 const listProductsForRecipe = () =>
   prisma.productos.findMany({
+    where: { tipo_producto: "PIZZA" },
     orderBy: { nombre: "asc" },
     select: {
       id_producto: true,
@@ -107,18 +116,34 @@ const listRecipeComponents = () =>
 
 const createIngredient = (data: IngredientInput, userId: number) =>
   prisma.$transaction(async (transaction) => {
+    await transaction.$queryRaw`SELECT pg_advisory_xact_lock(726003904)::text AS lock`;
+    const existing = await transaction.ingredientes.findMany({
+      select: { nombre: true },
+    });
+    const normalizedName = normalizeIngredientName(data.name);
+    if (existing.some((ingredient) => normalizeIngredientName(ingredient.nombre) === normalizedName)) {
+      throw new Error("INGREDIENT_NAME_DUPLICATE");
+    }
     const ingredient = await transaction.ingredientes.create({
       data: {
         nombre: data.name,
+        descripcion: data.description,
         unidad_medida: data.unit,
+        precio_extra: data.extraPrice,
+        cantidad_extra: data.extraQuantity,
         stock_actual: data.stock,
         stock_minimo: data.minimumStock,
         bloqueado: false,
+        activo: true,
+        tipo: data.type,
       },
       select: {
         id_ingrediente: true,
         nombre: true,
+        descripcion: true,
         unidad_medida: true,
+        precio_extra: true,
+        cantidad_extra: true,
         stock_actual: true,
         stock_minimo: true,
       },
@@ -146,11 +171,35 @@ const updateIngredient = async (
   userId: number,
 ) =>
   prisma.$transaction(async (transaction) => {
+    await transaction.$queryRaw`SELECT pg_advisory_xact_lock(726003904)::text AS lock`;
     const current = await transaction.ingredientes.findUnique({
       where: { id_ingrediente: id },
-      select: { stock_actual: true },
+      select: { stock_actual: true, nombre: true, unidad_medida: true },
     });
     if (!current) return null;
+    if (
+      data.type === "CONSUMIBLE" ||
+      (data.unit !== current.unidad_medida)
+    ) {
+      const recipeCount = await transaction.recetas.count({
+        where: { id_ingrediente: id },
+      });
+      if (recipeCount > 0) {
+        throw new Error(
+          data.type === "CONSUMIBLE"
+            ? "INGREDIENT_USED_IN_RECIPE"
+            : "INGREDIENT_UNIT_IN_USE",
+        );
+      }
+    }
+    const existing = await transaction.ingredientes.findMany({
+      where: { id_ingrediente: { not: id } },
+      select: { nombre: true },
+    });
+    const normalizedName = normalizeIngredientName(data.name);
+    if (existing.some((ingredient) => normalizeIngredientName(ingredient.nombre) === normalizedName)) {
+      throw new Error("INGREDIENT_NAME_DUPLICATE");
+    }
 
     const nextStock = new Prisma.Decimal(data.stock);
     const difference = nextStock.minus(current.stock_actual);
@@ -158,14 +207,21 @@ const updateIngredient = async (
       where: { id_ingrediente: id },
       data: {
         nombre: data.name,
+        descripcion: data.description,
         unidad_medida: data.unit,
+        precio_extra: data.extraPrice,
+        cantidad_extra: data.extraQuantity,
+        tipo: data.type,
         stock_actual: nextStock,
         stock_minimo: data.minimumStock,
       },
       select: {
         id_ingrediente: true,
         nombre: true,
+        descripcion: true,
         unidad_medida: true,
+        precio_extra: true,
+        cantidad_extra: true,
         stock_actual: true,
         stock_minimo: true,
       },
@@ -189,16 +245,80 @@ const updateIngredient = async (
     return updated;
   });
 
+const normalizeIngredientName = (name: string): string =>
+  name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/\s+/g, "")
+    .toLocaleLowerCase("es-MX");
+
+const updateIngredientActive = (id: number, active: boolean) =>
+  prisma.ingredientes.updateMany({
+    where: { id_ingrediente: id },
+    data: { activo: active },
+  });
+
+const deleteUnusedIngredient = async (id: number) =>
+  prisma.$transaction(async (transaction) => {
+    const ingredient = await transaction.ingredientes.findUnique({
+      where: { id_ingrediente: id },
+      select: { id_ingrediente: true },
+    });
+    if (!ingredient) return "NOT_FOUND" as const;
+    const [recipes, movements, orderIngredients, productIngredients] =
+      await Promise.all([
+        transaction.recetas.count({ where: { id_ingrediente: id } }),
+        transaction.movimientos_inventario.count({
+          where: { id_ingrediente: id },
+        }),
+        transaction.detalle_pedido_ingredientes.count({
+          where: { id_ingrediente: id },
+        }),
+        transaction.producto_ingredientes.count({
+          where: { id_ingrediente: id },
+        }),
+      ]);
+    if (recipes + movements + orderIngredients + productIngredients > 0) {
+      return "IN_USE" as const;
+    }
+    await transaction.ingredientes.delete({ where: { id_ingrediente: id } });
+    return "DELETED" as const;
+  });
+
+const listAvailableExtraIngredients = () =>
+  prisma.ingredientes.findMany({
+    where: {
+      tipo: "INGREDIENTE",
+      activo: true,
+      bloqueado: false,
+      stock_actual: { gt: 0 },
+    },
+    orderBy: { nombre: "asc" },
+    select: {
+      id_ingrediente: true,
+      nombre: true,
+      descripcion: true,
+      precio_extra: true,
+      cantidad_extra: true,
+      stock_actual: true,
+      stock_minimo: true,
+      unidad_medida: true,
+    },
+  });
+
 const replaceRecipe = (productId: number, data: RecipeInput) =>
   prisma.$transaction(async (transaction) => {
     const product = await transaction.productos.findUnique({
       where: { id_producto: productId },
       select: {
         id_producto: true,
+        tipo_producto: true,
         producto_tamanos: { select: { id_tamano: true } },
       },
     });
     if (!product) return "PRODUCT_NOT_FOUND" as const;
+    if (product.tipo_producto !== "PIZZA") return "PRODUCT_NOT_FOUND" as const;
     if (
       data.sizeId !== null &&
       !product.producto_tamanos.some((size) => size.id_tamano === data.sizeId)
@@ -207,7 +327,11 @@ const replaceRecipe = (productId: number, data: RecipeInput) =>
     }
     const ingredientIds = data.ingredients.map((item) => item.ingredientId);
     const ingredients = await transaction.ingredientes.findMany({
-      where: { id_ingrediente: { in: ingredientIds } },
+      where: {
+        id_ingrediente: { in: ingredientIds },
+        tipo: "INGREDIENTE",
+        activo: true,
+      },
       select: { id_ingrediente: true },
     });
     if (ingredients.length !== ingredientIds.length) {
@@ -217,14 +341,16 @@ const replaceRecipe = (productId: number, data: RecipeInput) =>
     await transaction.recetas.deleteMany({
       where: { id_producto: productId, id_tamano: data.sizeId },
     });
-    await transaction.recetas.createMany({
-      data: data.ingredients.map((item) => ({
-        id_producto: productId,
-        id_tamano: data.sizeId,
-        id_ingrediente: item.ingredientId,
-        cantidad_requerida: item.quantity,
-      })),
-    });
+    if (data.ingredients.length > 0) {
+      await transaction.recetas.createMany({
+        data: data.ingredients.map((item) => ({
+          id_producto: productId,
+          id_tamano: data.sizeId,
+          id_ingrediente: item.ingredientId,
+          cantidad_requerida: item.quantity,
+        })),
+      });
+    }
     return "OK" as const;
   });
 
@@ -252,8 +378,10 @@ const saveShowSoldOutSetting = (show: boolean) =>
 
 export {
   createIngredient,
+  deleteUnusedIngredient,
   getShowSoldOutSetting,
   listIngredients,
+  listAvailableExtraIngredients,
   listInventoryCatalog,
   listRecentInventoryMovements,
   listProductsForRecipe,
@@ -261,5 +389,6 @@ export {
   replaceRecipe,
   saveShowSoldOutSetting,
   updateIngredient,
+  updateIngredientActive,
   updateProductAvailability,
 };

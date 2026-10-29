@@ -53,8 +53,12 @@ model detalle_pedido {
 model detalle_pedido_ingredientes {
   id_detalle     Int
   id_ingrediente Int
+  cantidad       Decimal      @default(1.000) @db.Decimal(10, 3)
+  precio_extra   Decimal      @default(0.00) @db.Decimal(10, 2)
+  nombre_ingrediente String?   @db.VarChar(100)
+  descripcion_ingrediente String? @db.VarChar(255)
   detalle_pedido detalle_pedido @relation(fields: [id_detalle], references: [id_detalle], onDelete: Cascade, onUpdate: NoAction)
-  ingredientes   ingredientes   @relation(fields: [id_ingrediente], references: [id_ingrediente], onUpdate: NoAction)
+  ingredientes   ingredientes @relation(fields: [id_ingrediente], references: [id_ingrediente], onUpdate: NoAction)
 
   @@id([id_detalle, id_ingrediente])
 }
@@ -70,11 +74,15 @@ model estados_pedido {
 model ingredientes {
   id_ingrediente              Int                           @id @default(autoincrement())
   nombre                      String                        @db.VarChar(100)
+  descripcion                 String?                       @db.VarChar(255)
   unidad_medida               String                        @default("pieza") @db.VarChar(20)
   precio_extra                Decimal                       @default(0.00) @db.Decimal(10, 2)
+  cantidad_extra              Decimal                       @default(1.000) @db.Decimal(10, 3)
   stock_actual                Decimal                       @default(0.00) @db.Decimal(10, 2)
   stock_minimo                Decimal                       @default(5.00) @db.Decimal(10, 2)
   bloqueado                   Boolean                       @default(false)
+  activo                      Boolean                       @default(true)
+  tipo                        String                        @default("INGREDIENTE") @db.VarChar(20)
   detalle_pedido_ingredientes detalle_pedido_ingredientes[]
   movimientos_inventario      movimientos_inventario[]
   producto_ingredientes       producto_ingredientes[]
@@ -198,6 +206,7 @@ model productos {
   id_producto           Int                     @id @default(autoincrement())
   id_categoria          Int
   nombre                String                  @db.VarChar(100)
+  tipo_producto         String                  @default("PIZZA") @db.VarChar(20)
   descripcion           String?                 @db.VarChar(255)
   precio                Decimal                 @db.Decimal(10, 2)
   imagen                String?                 @db.VarChar(255)

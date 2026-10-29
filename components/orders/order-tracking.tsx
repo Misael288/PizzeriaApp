@@ -24,6 +24,7 @@ type TrackedOrder = {
     size: string | null;
     quantity: number;
     unitPrice: string;
+    extras: { name: string; description: string | null }[];
   }[];
 };
 
@@ -334,6 +335,16 @@ export function OrderTracking({ token }: OrderTrackingProps) {
                     <span>
                       {item.quantity} × {item.name}
                       {item.size ? ` · ${item.size}` : ""}
+                      {item.extras.length > 0 && (
+                        <ul className="mt-1 text-xs text-stone-500">
+                          {item.extras.map((extra) => (
+                            <li key={extra.name}>
+                              + {extra.name}
+                              {extra.description ? ` — ${extra.description}` : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </span>
                     <span className="whitespace-nowrap">
                       {currency(
@@ -364,6 +375,12 @@ export function OrderTracking({ token }: OrderTrackingProps) {
                     <li key={`${item.name}-${item.size ?? ""}-${index}`}>
                       {item.quantity} × {item.name}
                       {item.size ? ` · ${item.size}` : ""}
+                      {item.extras.map((extra) => (
+                        <span className="block" key={extra.name}>
+                          + {extra.name}
+                          {extra.description ? ` — ${extra.description}` : ""}
+                        </span>
+                      ))}
                     </li>
                   ))}
                 </ul>

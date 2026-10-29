@@ -5,10 +5,16 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 type Ingredient = {
   id_ingrediente: number;
   nombre: string;
+  descripcion: string | null;
   unidad_medida: string;
+  precio_extra: string;
+  cantidad_extra: string;
   stock_actual: string;
   stock_minimo: string;
   lowStock: boolean;
+  activo: boolean;
+  bloqueado: boolean;
+  tipo: "INGREDIENTE" | "CONSUMIBLE";
 };
 
 type Product = {
@@ -45,6 +51,7 @@ type InventoryData = {
   products: Product[];
   recipes: RecipeLine[];
   movements: InventoryMovement[];
+  duplicateIngredientNames: string[];
   availability: {
     productId: number;
     manuallyEnabled: boolean;
@@ -57,16 +64,24 @@ type InventoryData = {
 
 type IngredientForm = {
   name: string;
+  description: string;
   unit: string;
   stock: string;
   minimumStock: string;
+  type: "INGREDIENTE" | "CONSUMIBLE";
+  extraPrice: string;
+  extraQuantity: string;
 };
 
 const EMPTY_INGREDIENT: IngredientForm = {
   name: "",
+  description: "",
   unit: "g",
   stock: "0",
   minimumStock: "0",
+  type: "INGREDIENTE",
+  extraPrice: "0",
+  extraQuantity: "1",
 };
 
 const responseMessage = async (
@@ -92,7 +107,14 @@ export function InventoryManager() {
   const [notice, setNotice] = useState("");
   const [ingredientForm, setIngredientForm] =
     useState<IngredientForm>(EMPTY_INGREDIENT);
+  const [editingIngredientId, setEditingIngredientId] = useState<number | null>(
+    null,
+  );
   const [editingStock, setEditingStock] = useState<Record<number, string>>({});
+  const [savingStockId, setSavingStockId] = useState<number | null>(null);
+  const [inventoryType, setInventoryType] = useState<
+    "INGREDIENTE" | "CONSUMIBLE"
+  >("INGREDIENTE");
   const [selectedProduct, setSelectedProduct] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
   const [recipeLines, setRecipeLines] = useState<
@@ -168,22 +190,35 @@ export function InventoryManager() {
     setError("");
     setNotice("");
     try {
-      const response = await fetch("/api/inventory", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...ingredientForm,
-          stock: Number(ingredientForm.stock),
-          minimumStock: Number(ingredientForm.minimumStock),
-        }),
-      });
+      const response = await fetch(
+        editingIngredientId
+          ? `/api/inventory/ingredients/${editingIngredientId}`
+          : "/api/inventory",
+        {
+            method: editingIngredientId ? "PUT" : "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...ingredientForm,
+              description: ingredientForm.description || null,
+              stock: Number(ingredientForm.stock),
+              minimumStock: Number(ingredientForm.minimumStock),
+              extraPrice: Number(ingredientForm.extraPrice),
+              extraQuantity: Number(ingredientForm.extraQuantity),
+            }),
+          },
+      );
       if (!response.ok) {
         throw new Error(
           await responseMessage(response, "No se pudo guardar el ingrediente."),
         );
       }
-      setIngredientForm(EMPTY_INGREDIENT);
-      setNotice("Ingrediente creado y existencia inicial registrada.");
+      setIngredientForm({ ...EMPTY_INGREDIENT, type: inventoryType });
+      setNotice(
+        editingIngredientId
+          ? "Ingrediente actualizado."
+          : "Ingrediente creado y existencia inicial registrada.",
+      );
+      setEditingIngredientId(null);
       await loadInventory();
     } catch (saveError: unknown) {
       setError(
@@ -199,7 +234,18 @@ export function InventoryManager() {
   const saveStock = async (ingredient: Ingredient) => {
     setError("");
     setNotice("");
-    const stock = Number(editingStock[ingredient.id_ingrediente]);
+    const stockValue = editingStock[ingredient.id_ingrediente];
+    const stock = Number(stockValue);
+    if (
+      stockValue === undefined ||
+      stockValue.trim() === "" ||
+      !Number.isFinite(stock) ||
+      stock < 0
+    ) {
+      setError("Ingresa una existencia válida mayor o igual a cero.");
+      return;
+    }
+    setSavingStockId(ingredient.id_ingrediente);
     try {
       const response = await fetch(
         `/api/inventory/ingredients/${ingredient.id_ingrediente}`,
@@ -208,9 +254,13 @@ export function InventoryManager() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: ingredient.nombre,
+            description: ingredient.descripcion,
             unit: ingredient.unidad_medida,
             stock,
             minimumStock: Number(ingredient.stock_minimo),
+            type: ingredient.tipo,
+            extraPrice: Number(ingredient.precio_extra),
+            extraQuantity: Number(ingredient.cantidad_extra),
           }),
         },
       );
@@ -227,7 +277,92 @@ export function InventoryManager() {
           ? saveError.message
           : "No se pudo actualizar la existencia.",
       );
+    } finally {
+      setSavingStockId(null);
     }
+  };
+
+  const setIngredientStatus = async (ingredient: Ingredient) => {
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(
+        `/api/inventory/ingredients/${ingredient.id_ingrediente}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ active: !ingredient.activo }),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(
+          await responseMessage(response, "No se pudo cambiar el estado."),
+        );
+      }
+      setNotice(
+        ingredient.activo
+          ? `${ingredient.nombre} desactivado; su historial se conserva.`
+          : `${ingredient.nombre} reactivado.`,
+      );
+      await loadInventory();
+    } catch (statusError: unknown) {
+      setError(
+        statusError instanceof Error
+          ? statusError.message
+          : "No se pudo cambiar el estado.",
+      );
+    }
+  };
+
+  const deleteIngredient = async (ingredient: Ingredient) => {
+    if (
+      !window.confirm(
+        `¿Eliminar permanentemente ${ingredient.nombre}? Si tiene historial asociado, el sistema impedirá eliminarlo y podrás desactivarlo.`,
+      )
+    ) {
+      return;
+    }
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(
+        `/api/inventory/ingredients/${ingredient.id_ingrediente}`,
+        { method: "DELETE" },
+      );
+      if (!response.ok) {
+        throw new Error(
+          await responseMessage(response, "No se pudo eliminar el registro."),
+        );
+      }
+      setNotice(`${ingredient.nombre} eliminado.`);
+      await loadInventory();
+    } catch (deleteError: unknown) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "No se pudo eliminar el registro.",
+      );
+    }
+  };
+
+  const editIngredientDetails = (ingredient: Ingredient) => {
+    setEditingIngredientId(ingredient.id_ingrediente);
+    setInventoryType(ingredient.tipo);
+    setIngredientForm({
+      name: ingredient.nombre,
+      description: ingredient.descripcion ?? "",
+      unit: ingredient.unidad_medida,
+      stock: ingredient.stock_actual,
+      minimumStock: ingredient.stock_minimo,
+      type: ingredient.tipo,
+      extraPrice: ingredient.precio_extra,
+      extraQuantity: ingredient.cantidad_extra,
+    });
+  };
+
+  const cancelIngredientEdit = () => {
+    setEditingIngredientId(null);
+    setIngredientForm({ ...EMPTY_INGREDIENT, type: inventoryType });
   };
 
   const saveRecipe = async (event: FormEvent<HTMLFormElement>) => {
@@ -255,7 +390,11 @@ export function InventoryManager() {
           await responseMessage(response, "No se pudo guardar la receta."),
         );
       }
-      setNotice("Receta de la presentación guardada.");
+      setNotice(
+        recipeLines.length === 0
+          ? "Configuración de receta eliminada; el producto dejará de estar disponible hasta asignar ingredientes."
+          : "Receta guardada para todos los tamaños o la presentación seleccionada.",
+      );
       await loadInventory();
     } catch (saveError: unknown) {
       setError(
@@ -296,14 +435,25 @@ export function InventoryManager() {
     (item) => String(item.id_producto) === selectedProduct,
   );
   const loadRecipeLines = (productId: string, sizeId: string) => {
-    const matchingRecipe = data?.recipes.filter(
+    const recipes = data?.recipes.filter(
       (recipe) =>
-        recipe.id_producto === Number(productId) &&
-        recipe.id_tamano === (sizeId ? Number(sizeId) : null),
+        recipe.id_producto === Number(productId),
     );
-    if (matchingRecipe && matchingRecipe.length > 0) {
+    const matchingRecipe =
+      recipes?.filter(
+        (recipe) =>
+          recipe.id_tamano === (sizeId ? Number(sizeId) : null),
+      ) ??
+      [];
+    const fallbackRecipe =
+      sizeId && matchingRecipe.length === 0
+        ? (recipes?.filter((recipe) => recipe.id_tamano === null) ?? [])
+        : [];
+    const recipeToLoad =
+      matchingRecipe.length > 0 ? matchingRecipe : fallbackRecipe;
+    if (recipeToLoad.length > 0) {
       setRecipeLines(
-        matchingRecipe.map((recipe) => ({
+        recipeToLoad.map((recipe) => ({
           ingredientId: String(recipe.id_ingrediente),
           quantity: recipe.cantidad_requerida,
         })),
@@ -323,6 +473,13 @@ export function InventoryManager() {
       </p>
     );
   }
+
+  const filteredIngredients = data.ingredients.filter(
+    (ingredient) => ingredient.tipo === inventoryType,
+  );
+  const recipeIngredients = data.ingredients.filter(
+    (ingredient) => ingredient.tipo === "INGREDIENTE",
+  );
 
   const moveLine = (
     index: number,
@@ -408,6 +565,19 @@ export function InventoryManager() {
           <p className="pt-0.5">{error || notice}</p>
         </div>
       )}
+      {data.duplicateIngredientNames.length > 0 && (
+        <div
+          className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
+          role="alert"
+        >
+          <p className="font-bold">Revisa los nombres duplicados existentes</p>
+          <p className="mt-1">
+            No se combinaron registros automáticamente para conservar el
+            historial: {data.duplicateIngredientNames.join("; ")}. Desactiva los
+            registros que ya no uses.
+          </p>
+        </div>
+      )}
 
       {/* EXISTENCIAS */}
 
@@ -425,9 +595,28 @@ export function InventoryManager() {
             </p>
           </div>
 
-          <span className="inline-flex w-fit items-center rounded-full bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700">
-            {data.ingredients.length} ingredientes
-          </span>
+          <div className="flex flex-wrap gap-2">
+            {(["INGREDIENTE", "CONSUMIBLE"] as const).map((type) => (
+              <button
+                className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                  inventoryType === type
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-100 text-slate-600"
+                }`}
+                key={type}
+                onClick={() => {
+                  setInventoryType(type);
+                  setIngredientForm((current) => ({ ...current, type }));
+                }}
+                type="button"
+              >
+                {type === "INGREDIENTE" ? "Ingredientes" : "Consumibles"}
+                <span className="ml-2">
+                  {data.ingredients.filter((item) => item.tipo === type).length}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -444,7 +633,7 @@ export function InventoryManager() {
             </thead>
 
             <tbody className="divide-y divide-slate-100">
-              {data.ingredients.map((ingredient) => (
+              {filteredIngredients.map((ingredient) => (
                 <tr
                   key={ingredient.id_ingrediente}
                   className="transition hover:bg-slate-50/80"
@@ -458,6 +647,11 @@ export function InventoryManager() {
                         {ingredient.nombre}
                       </span>
                     </div>
+                    {ingredient.descripcion && (
+                      <p className="mt-1 pl-[3.25rem] text-xs text-slate-500">
+                        {ingredient.descripcion}
+                      </p>
+                    )}
                   </td>
 
                   <td className="px-4 py-4">
@@ -488,7 +682,11 @@ export function InventoryManager() {
                   </td>
 
                   <td className="px-4 py-4">
-                    {ingredient.lowStock ? (
+                    {!ingredient.activo ? (
+                      <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600">
+                        Desactivado
+                      </span>
+                    ) : ingredient.lowStock ? (
                       <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-800">
                         <span className="h-2 w-2 rounded-full bg-amber-500" />
                         Stock bajo
@@ -501,19 +699,45 @@ export function InventoryManager() {
                     )}
                   </td>
 
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-6 py-4">
+                    <div className="flex justify-end gap-2">
                     <button
                       className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/20"
+                      disabled={savingStockId === ingredient.id_ingrediente}
                       onClick={() => void saveStock(ingredient)}
                       type="button"
                     >
-                      EDITAR
+                      {savingStockId === ingredient.id_ingrediente
+                        ? "GUARDANDO..."
+                        : "GUARDAR STOCK"}
                     </button>
+                    <button
+                      className="rounded-xl border border-blue-200 px-3 py-2.5 text-xs font-bold text-blue-700"
+                      onClick={() => editIngredientDetails(ingredient)}
+                      type="button"
+                    >
+                      EDITAR DATOS
+                    </button>
+                    <button
+                      className="rounded-xl border border-amber-300 px-3 py-2.5 text-xs font-bold text-amber-800"
+                      onClick={() => void setIngredientStatus(ingredient)}
+                      type="button"
+                    >
+                      {ingredient.activo ? "DESACTIVAR" : "REACTIVAR"}
+                    </button>
+                    <button
+                      className="rounded-xl border border-red-200 px-3 py-2.5 text-xs font-bold text-red-700"
+                      onClick={() => void deleteIngredient(ingredient)}
+                      type="button"
+                    >
+                      ELIMINAR
+                    </button>
+                    </div>
                   </td>
                 </tr>
               ))}
 
-              {data.ingredients.length === 0 && (
+              {filteredIngredients.length === 0 && (
                 <tr>
                   <td className="px-6 py-12 text-center" colSpan={6}>
                     <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl text-slate-400">
@@ -692,10 +916,14 @@ export function InventoryManager() {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-[#071C3B]">
-                  Agregar ingrediente
+                  {editingIngredientId
+                    ? "Editar datos de inventario"
+                    : `Agregar ${inventoryType === "INGREDIENTE" ? "ingrediente" : "consumible"}`}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Registra una nueva materia prima.
+                  {editingIngredientId
+                    ? "Actualiza nombre, descripción, unidad, stock y configuración de extras."
+                    : "Registra existencias sin mezclar bebidas con materias primas."}
                 </p>
               </div>
             </div>
@@ -717,6 +945,41 @@ export function InventoryManager() {
                 value={ingredientForm.name}
                 placeholder="Ej. Queso mozzarella"
               />
+            </label>
+
+            <label className="block text-sm font-semibold text-slate-700">
+                Descripción
+                <textarea
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-normal outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                  maxLength={255}
+                  onChange={(event) =>
+                    setIngredientForm((current) => ({
+                      ...current,
+                      description: event.target.value,
+                    }))
+                  }
+                  rows={2}
+                  value={ingredientForm.description}
+                />
+            </label>
+
+            <label className="block text-sm font-semibold text-slate-700">
+                Tipo de inventario
+                <select
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 font-normal"
+                  onChange={(event) => {
+                    const type =
+                      event.target.value === "CONSUMIBLE"
+                        ? "CONSUMIBLE"
+                        : "INGREDIENTE";
+                    setInventoryType(type);
+                    setIngredientForm((current) => ({ ...current, type }));
+                  }}
+                  value={ingredientForm.type}
+                >
+                  <option value="INGREDIENTE">Ingrediente para recetas</option>
+                  <option value="CONSUMIBLE">Consumible / refresco</option>
+                </select>
             </label>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -777,6 +1040,43 @@ export function InventoryManager() {
               </label>
             </div>
 
+            {ingredientForm.type === "INGREDIENTE" && (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label className="text-sm font-semibold text-slate-700">
+                  Precio por ingrediente extra
+                  <input
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 font-normal"
+                    min={0}
+                    onChange={(event) =>
+                      setIngredientForm((current) => ({
+                        ...current,
+                        extraPrice: event.target.value,
+                      }))
+                    }
+                    step="0.01"
+                    type="number"
+                    value={ingredientForm.extraPrice}
+                  />
+                </label>
+                <label className="text-sm font-semibold text-slate-700">
+                  Cantidad usada por extra ({ingredientForm.unit})
+                  <input
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 font-normal"
+                    min="0.001"
+                    onChange={(event) =>
+                      setIngredientForm((current) => ({
+                        ...current,
+                        extraQuantity: event.target.value,
+                      }))
+                    }
+                    step="0.001"
+                    type="number"
+                    value={ingredientForm.extraQuantity}
+                  />
+                </label>
+              </div>
+            )}
+
             <div className="rounded-xl bg-blue-50 p-4 text-sm leading-5 text-blue-800">
               Define la cantidad inicial y el nivel mínimo para detectar faltantes
               de inventario.
@@ -787,8 +1087,19 @@ export function InventoryManager() {
               disabled={isSaving}
               type="submit"
             >
-              Registrar ingrediente
+              {editingIngredientId
+                ? "Guardar cambios"
+                : `Registrar ${ingredientForm.type === "INGREDIENTE" ? "ingrediente" : "consumible"}`}
             </button>
+            {editingIngredientId && (
+              <button
+                className="ml-3 rounded-xl border border-slate-200 px-5 py-3.5 font-bold text-slate-600"
+                onClick={cancelIngredientEdit}
+                type="button"
+              >
+                Cancelar edición
+              </button>
+            )}
           </div>
         </form>
 
@@ -847,10 +1158,9 @@ export function InventoryManager() {
                     setSelectedSize(sizeId);
                     loadRecipeLines(selectedProduct, sizeId);
                   }}
-                  required
                   value={selectedSize}
                 >
-                  <option value="">Selecciona una presentación...</option>
+                  <option value="">Todos los tamaños (receta general)</option>
                   {product.producto_tamanos.map((size) => (
                     <option key={size.id_tamano} value={size.id_tamano}>
                       {size.tamanos.nombre}
@@ -906,12 +1216,27 @@ export function InventoryManager() {
                         value={line.ingredientId}
                       >
                         <option value="">Selecciona ingrediente...</option>
-                        {data.ingredients.map((ingredient) => (
+                        {recipeIngredients.map((ingredient) => (
                           <option
+                            disabled={
+                              (!ingredient.activo || ingredient.bloqueado) &&
+                              line.ingredientId !==
+                                String(ingredient.id_ingrediente)
+                                ? true
+                                : recipeLines.some(
+                                    (otherLine, otherIndex) =>
+                                      otherIndex !== index &&
+                                      otherLine.ingredientId ===
+                                        String(ingredient.id_ingrediente),
+                                  )
+                            }
                             key={ingredient.id_ingrediente}
                             value={ingredient.id_ingrediente}
                           >
                             {ingredient.nombre} ({ingredient.unidad_medida})
+                            {!ingredient.activo || ingredient.bloqueado
+                              ? " · Inactivo"
+                              : ""}
                           </option>
                         ))}
                       </select>
@@ -963,12 +1288,13 @@ export function InventoryManager() {
               <button
                 className="w-full rounded-xl bg-[#F52727] px-5 py-3.5 font-bold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={
-                  data.ingredients.length === 0 ||
-                  (Boolean(product?.producto_tamanos.length) && !selectedSize)
+                  !selectedProduct
                 }
                 type="submit"
               >
-                Guardar receta
+                {recipeLines.length === 0
+                  ? "Eliminar configuración de receta"
+                  : "Guardar receta"}
               </button>
             </div>
           </div>

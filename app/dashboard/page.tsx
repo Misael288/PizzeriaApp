@@ -22,6 +22,7 @@ export default async function DashboardPage() {
     { label: "Catálogo", href: "/catalog", show: true },
     { label: "Historial", href: "/orders/history", show: true },
     { label: "Usuarios", href: "/users", show: isAdmin },
+    { label: "Configuración", href: "/admin/settings", show: isAdmin },
     { label: "Reportes", href: "/reports", show: isAdmin },
   ];
 

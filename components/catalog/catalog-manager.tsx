@@ -33,6 +33,7 @@ type ProductSize = {
 type Product = {
   id_producto: number;
   id_categoria: number;
+  tipo_producto: "PIZZA" | "REFRESCO";
   nombre: string;
   descripcion: string | null;
   precio: string | number;
@@ -138,6 +139,12 @@ export function CatalogManager({ role }: CatalogManagerProps) {
   const [activeTab, setActiveTab] = useState<"products" | "categories">(
     "products",
   );
+  const [activeProductType, setActiveProductType] = useState<
+    "PIZZA" | "REFRESCO"
+  >("PIZZA");
+  const [productType, setProductType] = useState<"PIZZA" | "REFRESCO">(
+    "PIZZA",
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -220,14 +227,17 @@ export function CatalogManager({ role }: CatalogManagerProps) {
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("es-MX");
 
-    if (!query) return products;
+    const typeProducts = products.filter(
+      (product) => product.tipo_producto === activeProductType,
+    );
+    if (!query) return typeProducts;
 
-    return products.filter(
+    return typeProducts.filter(
       (product) =>
         product.nombre.toLocaleLowerCase("es-MX").includes(query) ||
         product.categorias.nombre.toLocaleLowerCase("es-MX").includes(query),
     );
-  }, [products, search]);
+  }, [activeProductType, products, search]);
 
   const resetCategoryForm = () => {
     setEditingCategoryId(null);
@@ -238,6 +248,7 @@ export function CatalogManager({ role }: CatalogManagerProps) {
 
   const resetProductForm = () => {
     setEditingProductId(null);
+    setProductType(activeProductType);
     setProductName("");
     setProductDescription("");
     setProductImage("");
@@ -392,6 +403,8 @@ export function CatalogManager({ role }: CatalogManagerProps) {
 
   const editProduct = (product: Product) => {
     setEditingProductId(product.id_producto);
+    setActiveProductType(product.tipo_producto);
+    setProductType(product.tipo_producto);
     setProductName(product.nombre);
     setProductDescription(product.descripcion ?? "");
     setProductImage(product.imagen ?? "");
@@ -463,6 +476,7 @@ export function CatalogManager({ role }: CatalogManagerProps) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             categoryId: Number(productCategoryId),
+            productType,
             name: productName,
             description: productDescription || null,
             image,
@@ -863,6 +877,29 @@ export function CatalogManager({ role }: CatalogManagerProps) {
       {/* PRODUCTOS */}
 
       {activeTab === "products" && (
+        <>
+        <div className="mb-5 flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+          {(["PIZZA", "REFRESCO"] as const).map((type) => (
+            <button
+              className={`rounded-xl px-5 py-3 text-sm font-semibold ${
+                activeProductType === type
+                  ? "bg-blue-600 text-white"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+              key={type}
+              onClick={() => {
+                if (editingProductId !== null) resetProductForm();
+                setActiveProductType(type);
+                setProductType(type);
+                setError("");
+              }}
+              type="button"
+            >
+              {type === "PIZZA" ? "Pizzas" : "Refrescos"} (
+              {products.filter((product) => product.tipo_producto === type).length})
+            </button>
+          ))}
+        </div>
         <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-5">
 
           {/* FORMULARIO DE PRODUCTO */}
@@ -874,7 +911,9 @@ export function CatalogManager({ role }: CatalogManagerProps) {
                   Gestión de productos
                 </span>
                 <h2 className="mt-2 text-xl font-bold text-[#071C3B]">
-                  {editingProductId ? "Editar producto" : "Nuevo producto"}
+                  {editingProductId
+                    ? `Editar ${productType === "PIZZA" ? "pizza" : "refresco"}`
+                    : `Nuevo ${productType === "PIZZA" ? "pizza" : "refresco"}`}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
                   Configura la información, los precios y las presentaciones.
@@ -882,6 +921,24 @@ export function CatalogManager({ role }: CatalogManagerProps) {
               </div>
 
               <form onSubmit={saveProduct} className="space-y-5 p-6">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Tipo de producto
+                  <select
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-normal"
+                    onChange={(event) => {
+                      const type =
+                        event.target.value === "REFRESCO"
+                          ? "REFRESCO"
+                          : "PIZZA";
+                      setProductType(type);
+                      setActiveProductType(type);
+                    }}
+                    value={productType}
+                  >
+                    <option value="PIZZA">Pizza</option>
+                    <option value="REFRESCO">Refresco</option>
+                  </select>
+                </label>
                 <div>
                   <label
                     htmlFor="product-name"
@@ -1287,12 +1344,12 @@ export function CatalogManager({ role }: CatalogManagerProps) {
                   ◈
                 </div>
                 <p className="mt-4 font-semibold text-slate-700">
-                  {products.length === 0
+                  {filteredProducts.length === 0
                     ? "No hay productos para mostrar."
                     : "No se encontraron productos."}
                 </p>
                 <p className="mt-1 text-sm text-slate-400">
-                  {products.length === 0
+                  {filteredProducts.length === 0
                     ? "Los productos registrados aparecerán aquí."
                     : "Intenta con otro nombre o categoría."}
                 </p>
@@ -1314,7 +1371,9 @@ export function CatalogManager({ role }: CatalogManagerProps) {
                         />
                       ) : (
                         <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
-                          <span className="text-5xl">🍕</span>
+                          <span className="text-5xl">
+                            {product.tipo_producto === "PIZZA" ? "🍕" : "🥤"}
+                          </span>
                           <span className="mt-3 text-xs font-medium uppercase tracking-widest text-slate-400">
                             Pizzería Planeta
                           </span>
@@ -1426,6 +1485,7 @@ export function CatalogManager({ role }: CatalogManagerProps) {
             </div>
           </section>
         </div>
+        </>
       )}
     </div>
   </main>

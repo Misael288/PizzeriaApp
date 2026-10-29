@@ -6,14 +6,27 @@ import {
   parseRouteId,
 } from "@/lib/catalog/http";
 import { inventoryErrorResponse } from "@/lib/inventory/http";
-import { editIngredient } from "@/services/inventory-service";
+import {
+  editIngredient,
+  removeUnusedIngredient,
+  setIngredientActive,
+} from "@/services/inventory-service";
 import { parseIngredientInput } from "@/validators/inventory-validator";
 
 export const runtime = "nodejs";
 
+type RouteContext = { params: Promise<{ id: string }> };
+
+const getIngredientId = async (
+  context: RouteContext,
+): Promise<number | null> => {
+  const { id } = await context.params;
+  return parseRouteId(id);
+};
+
 export async function PUT(
   request: Request,
-  context: { params: Promise<{ id: string }> },
+  context: RouteContext,
 ): Promise<NextResponse> {
   if (!isSameOriginRequest(request)) {
     return NextResponse.json(
@@ -21,12 +34,10 @@ export async function PUT(
       { status: 403 },
     );
   }
-
   try {
     const authorization = await authorizeRoles([ADMIN_ROLE]);
     if (!authorization.authorized) return authorization.response;
-    const { id: rawId } = await context.params;
-    const id = parseRouteId(rawId);
+    const id = await getIngredientId(context);
     if (!id) {
       return NextResponse.json(
         { message: "Identificador inválido." },
@@ -49,6 +60,76 @@ export async function PUT(
       authorization.user.id,
     );
     return NextResponse.json({ ingredient });
+  } catch (error: unknown) {
+    return inventoryErrorResponse(error);
+  }
+}
+
+export async function PATCH(
+  request: Request,
+  context: RouteContext,
+): Promise<NextResponse> {
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json(
+      { message: "Origen de solicitud no válido." },
+      { status: 403 },
+    );
+  }
+  try {
+    const authorization = await authorizeRoles([ADMIN_ROLE]);
+    if (!authorization.authorized) return authorization.response;
+    const id = await getIngredientId(context);
+    if (!id) {
+      return NextResponse.json(
+        { message: "Identificador inválido." },
+        { status: 400 },
+      );
+    }
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ message: "JSON inválido." }, { status: 400 });
+    }
+    if (
+      typeof body !== "object" ||
+      body === null ||
+      !("active" in body) ||
+      typeof body.active !== "boolean" ||
+      Object.keys(body).length !== 1
+    ) {
+      return NextResponse.json(
+        { message: "active debe ser el único campo booleano de la solicitud." },
+        { status: 422 },
+      );
+    }
+    return NextResponse.json(await setIngredientActive(id, body.active));
+  } catch (error: unknown) {
+    return inventoryErrorResponse(error);
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  context: RouteContext,
+): Promise<NextResponse> {
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json(
+      { message: "Origen de solicitud no válido." },
+      { status: 403 },
+    );
+  }
+  try {
+    const authorization = await authorizeRoles([ADMIN_ROLE]);
+    if (!authorization.authorized) return authorization.response;
+    const id = await getIngredientId(context);
+    if (!id) {
+      return NextResponse.json(
+        { message: "Identificador inválido." },
+        { status: 400 },
+      );
+    }
+    return NextResponse.json(await removeUnusedIngredient(id));
   } catch (error: unknown) {
     return inventoryErrorResponse(error);
   }

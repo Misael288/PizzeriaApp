@@ -19,6 +19,7 @@ type MenuCategory = {
 type MenuProduct = {
   id_producto: number;
   id_categoria: number;
+  tipo_producto: "PIZZA" | "REFRESCO";
   nombre: string;
   descripcion: string | null;
   precio: string;
@@ -33,6 +34,15 @@ type MenuProduct = {
   }[];
 };
 
+type ExtraIngredient = {
+  id: number;
+  name: string;
+  description: string | null;
+  unit: string;
+  extraPrice: string;
+  extraQuantity: string;
+};
+
 type CartLine = {
   key: string;
   productId: number;
@@ -41,12 +51,14 @@ type CartLine = {
   sizeName: string | null;
   price: number;
   quantity: number;
+  extraIngredientIds: number[];
 };
 
 type PublicMenuProps = {
   categories: MenuCategory[];
   products: MenuProduct[];
   paymentOptions: PublicPaymentOptions;
+  extraIngredients: ExtraIngredient[];
   staffHref?: string | null;
 };
 
@@ -99,6 +111,7 @@ export function PublicMenu({
   categories,
   products,
   paymentOptions,
+  extraIngredients,
   staffHref,
 }: PublicMenuProps) {
   const [activeCategory, setActiveCategory] = useState<number | null>(null);
@@ -106,6 +119,9 @@ export function PublicMenu({
     {},
   );
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [selectedExtras, setSelectedExtras] = useState<Record<number, number[]>>(
+    {},
+  );
   const [customerName, setCustomerName] = useState("");
   const [phone, setPhone] = useState("");
   const [deliveryType, setDeliveryType] = useState<"DOMICILIO" | "RECOGER">(
@@ -202,8 +218,15 @@ export function PublicMenu({
       setError("Ese producto o tamaño está agotado.");
       return;
     }
-    const key = `${product.id_producto}:${sizeId ?? "none"}`;
-    const price = Number(selectedSize?.precio ?? product.precio);
+    const extras = selectedExtras[product.id_producto] ?? [];
+    const key = `${product.id_producto}:${sizeId ?? "none"}:${extras
+      .slice()
+      .sort((left, right) => left - right)
+      .join(",")}`;
+    const extraPrice = extraIngredients
+      .filter((ingredient) => extras.includes(ingredient.id))
+      .reduce((sum, ingredient) => sum + Number(ingredient.extraPrice), 0);
+    const price = Number(selectedSize?.precio ?? product.precio) + extraPrice;
 
     setCart((current) => {
       const existing = current.find((line) => line.key === key);
@@ -224,6 +247,7 @@ export function PublicMenu({
           sizeName: selectedSize?.tamanos.nombre ?? null,
           price,
           quantity: 1,
+          extraIngredientIds: extras,
         },
       ];
     });
@@ -260,6 +284,7 @@ export function PublicMenu({
             productId: line.productId,
             sizeId: line.sizeId,
             quantity: line.quantity,
+            extraIngredientIds: line.extraIngredientIds,
           })),
         }),
       });
@@ -477,6 +502,55 @@ export function PublicMenu({
                         {currency(Number(product.precio))}
                       </p>
                     )}
+                    {product.tipo_producto === "PIZZA" &&
+                      extraIngredients.length > 0 && (
+                        <fieldset className="mt-4 rounded-lg border border-stone-200 p-3">
+                          <legend className="px-1 text-sm font-semibold">
+                            Ingredientes extra
+                          </legend>
+                          <div className="space-y-2">
+                            {extraIngredients.map((ingredient) => (
+                              <label
+                                className="flex items-start gap-2 text-sm"
+                                key={ingredient.id}
+                              >
+                                <input
+                                  checked={(
+                                    selectedExtras[product.id_producto] ?? []
+                                  ).includes(ingredient.id)}
+                                  className="mt-1"
+                                  onChange={(event) =>
+                                    setSelectedExtras((current) => {
+                                      const selected =
+                                        current[product.id_producto] ?? [];
+                                      return {
+                                        ...current,
+                                        [product.id_producto]: event.target.checked
+                                          ? [...selected, ingredient.id]
+                                          : selected.filter(
+                                              (id) => id !== ingredient.id,
+                                            ),
+                                      };
+                                    })
+                                  }
+                                  type="checkbox"
+                                />
+                                <span>
+                                  <span className="block font-medium">
+                                    {ingredient.name} (+{" "}
+                                    {currency(Number(ingredient.extraPrice))})
+                                  </span>
+                                  {ingredient.description && (
+                                    <span className="block text-xs text-stone-500">
+                                      {ingredient.description}
+                                    </span>
+                                  )}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </fieldset>
+                      )}
                     <button
                       className="mt-4 w-full rounded-lg bg-stone-900 px-4 py-2.5 font-semibold text-white hover:bg-stone-700"
                       disabled={!product.disponible}
@@ -512,6 +586,23 @@ export function PublicMenu({
                         <p className="text-sm text-stone-500">{line.sizeName}</p>
                       )}
                       <p className="text-sm">{currency(line.price)}</p>
+                      {line.extraIngredientIds.length > 0 && (
+                        <ul className="mt-1 text-xs text-stone-500">
+                          {line.extraIngredientIds.map((id) => {
+                            const extra = extraIngredients.find(
+                              (ingredient) => ingredient.id === id,
+                            );
+                            return extra ? (
+                              <li key={id}>
+                                + {extra.name}
+                                {extra.description
+                                  ? ` — ${extra.description}`
+                                  : ""}
+                              </li>
+                            ) : null;
+                          })}
+                        </ul>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <button

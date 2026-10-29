@@ -19,6 +19,8 @@ import {
   updateOrder,
 } from "@/repositories/order-repository";
 import { getInventoryOverview } from "@/services/inventory-service";
+import { getAvailableExtraIngredients } from "@/services/inventory-service";
+import { containsForbiddenText } from "@/services/profanity-service";
 import {
   getAdminTransferSettings as getTransferSettings,
   isTransferConfigured,
@@ -134,16 +136,18 @@ const getEta = async (orderId: number): Promise<number> => {
 };
 
 const getPublicMenu = async () => {
-  const [categories, products, inventory] = await Promise.all([
+  const [categories, products, inventory, extraIngredients] = await Promise.all([
     listPublicCategories(),
     listPublicProducts(),
     getInventoryOverview(),
+    getAvailableExtraIngredients(),
   ]);
   const availability = new Map(
     inventory.availability.map((item) => [item.productId, item]),
   );
   return {
     categories,
+    extraIngredients,
     products: products
       .map((product) => {
         const productAvailability = availability.get(product.id_producto);
@@ -159,6 +163,10 @@ const getPublicMenu = async () => {
           productAvailability?.available ?? false;
         return {
           ...product,
+          tipo_producto:
+            product.tipo_producto === "REFRESCO"
+              ? ("REFRESCO" as const)
+              : ("PIZZA" as const),
           precio: product.precio.toString(),
           disponible,
           producto_tamanos: sizes,
@@ -171,6 +179,16 @@ const getPublicMenu = async () => {
 const addGuestOrder = async (input: GuestOrderInput) => {
   const trackingToken = createTrackingToken();
   try {
+    if (
+      (await containsForbiddenText(input.customerName)) ||
+      (input.deliveryAddress &&
+        (await containsForbiddenText(input.deliveryAddress)))
+    ) {
+      throw new OrderServiceError(
+        "El nombre o la dirección contiene una palabra no permitida.",
+        422,
+      );
+    }
     const methods = await listPaymentMethods();
     const selectedMethod = methods.find(
       (method) => method.id_metodo_pago === input.paymentMethodId,
@@ -214,6 +232,18 @@ const addGuestOrder = async (input: GuestOrderInput) => {
         ],
         ORDER_SIZE_REQUIRED: [
           "Selecciona un tamaño para cada producto que tenga presentaciones.",
+          422,
+        ],
+        ORDER_EXTRA_UNAVAILABLE: [
+          "Uno o más ingredientes extra ya no están disponibles.",
+          409,
+        ],
+        ORDER_EXTRA_NOT_ALLOWED: [
+          "Los ingredientes extra solo se pueden agregar a pizzas.",
+          422,
+        ],
+        ORDER_PROFANITY_INVALID: [
+          "El nombre o la dirección contiene una palabra no permitida.",
           422,
         ],
         ORDER_TOTAL_EXCEEDED: [
@@ -301,6 +331,11 @@ const getGuestOrderTracking = async (token: string) => {
       size: item.tamanos?.nombre ?? null,
       quantity: item.cantidad,
       unitPrice: item.precio_unitario.toString(),
+      extras: item.detalle_pedido_ingredientes.map((extra) => ({
+        name: extra.nombre_ingrediente ?? extra.ingredientes.nombre,
+        description:
+          extra.descripcion_ingrediente ?? extra.ingredientes.descripcion,
+      })),
     })),
   };
 };
@@ -329,6 +364,11 @@ const getStaffOrderQueue = async () => {
         size: item.tamanos?.nombre ?? null,
         quantity: item.cantidad,
         unitPrice: item.precio_unitario,
+        extras: item.detalle_pedido_ingredientes.map((extra) => ({
+          name: extra.nombre_ingrediente ?? extra.ingredientes.nombre,
+          description:
+            extra.descripcion_ingrediente ?? extra.ingredientes.descripcion,
+        })),
       })),
       paidAt: order.pagado_en?.toISOString() ?? null,
       paymentMethod: order.metodos_pago?.nombre ?? null,
