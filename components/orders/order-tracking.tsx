@@ -179,10 +179,10 @@ export function OrderTracking({ token }: OrderTrackingProps) {
   };
 
   return (
-    <main className="min-h-screen bg-stone-100 px-4 py-10 sm:px-6">
+    <main className="planeta-screen min-h-screen bg-stone-100 px-4 py-10 sm:px-6">
       <section className="mx-auto max-w-2xl rounded-3xl bg-white p-6 shadow-sm sm:p-8">
         <p className="text-sm font-bold uppercase tracking-[0.2em] text-red-700">
-          Seguimiento privado
+          Pizzería Planeta · Seguimiento privado
         </p>
         <h1 className="mt-2 text-3xl font-bold text-stone-900">
           Estado de tu pedido

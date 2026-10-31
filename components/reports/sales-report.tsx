@@ -143,7 +143,7 @@ export function SalesReport() {
   return (
     <div className="space-y-6">
       <form
-        className="flex flex-wrap items-end gap-4 rounded-2xl bg-white p-5 shadow-sm"
+        className="flex flex-wrap items-end gap-4 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"
         onSubmit={(event) => void generateReport(event)}
       >
         <label className="grid gap-1 text-sm font-semibold">
@@ -183,25 +183,25 @@ export function SalesReport() {
       {report && (
         <>
           <section className="grid gap-4 sm:grid-cols-2">
-            <article className="rounded-2xl bg-white p-5 shadow-sm">
+            <article className="rounded-2xl border border-l-4 border-l-red-700 border-stone-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-semibold text-stone-600">
                 Ventas cobradas
               </p>
-              <p className="mt-2 text-3xl font-bold text-stone-900">
+              <p className="mt-2 text-3xl font-extrabold tracking-tight text-stone-900">
                 {currency(report.totalSales)}
               </p>
             </article>
-            <article className="rounded-2xl bg-white p-5 shadow-sm">
+            <article className="rounded-2xl border border-l-4 border-l-[#25364B] border-stone-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-semibold text-stone-600">
                 Pedidos cobrados
               </p>
-              <p className="mt-2 text-3xl font-bold text-stone-900">
+              <p className="mt-2 text-3xl font-extrabold tracking-tight text-stone-900">
                 {report.orderCount}
               </p>
             </article>
           </section>
 
-          <section className="rounded-2xl bg-white p-5 shadow-sm">
+          <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
             <h2 className="text-xl font-bold">Ventas por método de pago</h2>
             <div className="mt-4 overflow-x-auto">
               <table className="w-full min-w-[28rem] text-left">
@@ -232,7 +232,7 @@ export function SalesReport() {
             </div>
           </section>
 
-          <section className="overflow-x-auto rounded-2xl bg-white p-5 shadow-sm">
+          <section className="overflow-x-auto rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-bold">
                 Pedidos cobrados recientes (máximo 100)

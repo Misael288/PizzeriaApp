@@ -345,6 +345,42 @@ export function InventoryManager() {
     }
   };
 
+  const deleteProduct = async (product: { id_producto: number; nombre: string }) => {
+    if (
+      !window.confirm(
+        `¿Eliminar permanentemente "${product.nombre}"? Se borrarán también su receta, ingredientes y presentaciones. Los pedidos anteriores conservarán su nombre y precio. Esta acción no se puede deshacer.`,
+      )
+    ) {
+      return;
+    }
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(
+        `/api/catalog/products/${product.id_producto}`,
+        { method: "DELETE" },
+      );
+      if (!response.ok) {
+        throw new Error(
+          await responseMessage(response, "No se pudo eliminar el producto."),
+        );
+      }
+      if (selectedProduct === String(product.id_producto)) {
+        setSelectedProduct("");
+        setSelectedSize("");
+        setRecipeLines([{ ingredientId: "", quantity: "" }]);
+      }
+      setNotice(`${product.nombre} eliminado.`);
+      await loadInventory();
+    } catch (deleteError: unknown) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "No se pudo eliminar el producto.",
+      );
+    }
+  };
+
   const editIngredientDetails = (ingredient: Ingredient) => {
     setEditingIngredientId(ingredient.id_ingrediente);
     setInventoryType(ingredient.tipo);
@@ -494,10 +530,10 @@ export function InventoryManager() {
   };
 
   return (
-  <main className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 lg:px-8">
+  <main className="planeta-screen min-h-screen bg-slate-100 px-4 py-8 sm:px-6 lg:px-8">
     <div className="mx-auto max-w-7xl space-y-8">
 
-      <header className="overflow-hidden rounded-3xl bg-[#071C3B] shadow-xl">
+      <header className="overflow-hidden rounded-3xl bg-[#25364B] shadow-xl">
         <div className="flex flex-col justify-between gap-6 p-6 sm:p-8 lg:flex-row lg:items-center">
           <div>
             <span className="inline-flex rounded-full bg-red-500/15 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.2em] text-red-400">
@@ -516,7 +552,7 @@ export function InventoryManager() {
 
           <a
             href="/dashboard"
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F52727] px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-400/30"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#D94B3D] px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:bg-[#B93A31] focus:outline-none focus:ring-4 focus:ring-red-400/30"
           >
             <span aria-hidden="true">←</span>
             Volver al panel
@@ -584,7 +620,7 @@ export function InventoryManager() {
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-4 border-b border-slate-100 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <span className="text-xs font-bold uppercase tracking-widest text-blue-600">
+            <span className="text-xs font-bold uppercase tracking-widest text-red-700">
               Control de materias primas
             </span>
             <h2 className="mt-2 text-xl font-bold text-[#071C3B]">
@@ -600,7 +636,7 @@ export function InventoryManager() {
               <button
                 className={`rounded-full px-4 py-2 text-sm font-semibold ${
                   inventoryType === type
-                    ? "bg-blue-600 text-white"
+                    ? "bg-[#D94B3D] text-white"
                     : "bg-slate-100 text-slate-600"
                 }`}
                 key={type}
@@ -881,6 +917,14 @@ export function InventoryManager() {
                       Una o más presentaciones no tienen existencia suficiente.
                     </p>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={() => void deleteProduct(product)}
+                    className="w-full rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50"
+                  >
+                    Eliminar producto
+                  </button>
                 </div>
               </article>
             );

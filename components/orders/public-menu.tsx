@@ -310,7 +310,7 @@ export function PublicMenu({
 
   if (confirmation) {
     return (
-      <main className="min-h-screen bg-stone-100 px-4 py-10 sm:px-6">
+      <main className="planeta-screen min-h-screen bg-stone-100 px-4 py-10 sm:px-6">
         <section className="mx-auto max-w-2xl rounded-3xl bg-white p-8 text-center shadow-sm">
           <p className="text-sm font-bold uppercase tracking-[0.2em] text-red-700">
             Pedido recibido
@@ -362,8 +362,8 @@ export function PublicMenu({
   }
 
   return (
-    <main className="min-h-screen bg-stone-100 text-stone-900">
-      <header className="bg-[#071C3B] px-4 py-5 text-white sm:px-8">
+    <main className="planeta-screen min-h-screen bg-stone-100 text-stone-900">
+      <header className="bg-[#25364B] px-4 py-5 text-white sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.25em] text-red-300">
@@ -436,7 +436,7 @@ export function PublicMenu({
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {visibleProducts.map((product) => (
                 <article
-                  className="overflow-hidden rounded-2xl bg-white shadow-sm"
+                  className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md"
                   key={product.id_producto}
                 >
                   {product.imagen ? (
@@ -552,7 +552,7 @@ export function PublicMenu({
                         </fieldset>
                       )}
                     <button
-                      className="mt-4 w-full rounded-lg bg-stone-900 px-4 py-2.5 font-semibold text-white hover:bg-stone-700"
+                      className="mt-4 w-full rounded-lg bg-[#D94B3D] px-4 py-2.5 font-semibold text-white hover:bg-[#B93A31]"
                       disabled={!product.disponible}
                       onClick={() => addProduct(product)}
                       type="button"
@@ -566,7 +566,7 @@ export function PublicMenu({
           )}
         </section>
 
-        <aside className="h-fit rounded-2xl bg-white p-5 shadow-sm lg:sticky lg:top-6">
+        <aside className="h-fit rounded-2xl border border-stone-200 bg-white p-5 shadow-sm lg:sticky lg:top-6">
           <h2 className="text-xl font-bold">Tu pedido ({itemCount})</h2>
           {cart.length === 0 ? (
             <p className="mt-4 text-sm text-stone-600">
@@ -763,7 +763,7 @@ export function PublicMenu({
                   </p>
                 )}
                 <button
-                  className="w-full rounded-lg bg-red-700 px-4 py-3 font-bold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-lg bg-[#D94B3D] px-4 py-3 font-bold text-white hover:bg-[#B93A31] disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={
                     isSubmitting ||
                     cart.length === 0 ||

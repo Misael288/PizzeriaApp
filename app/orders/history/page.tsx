@@ -15,7 +15,7 @@ export default async function OrderHistoryPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f4f6f9] text-[#25364b]">
+    <main className="planeta-screen min-h-screen bg-[#f4f6f9] text-[#25364b]">
       {/* Encabezado del maquetado */}
       <header className="border-b border-white/10 bg-[#25364b] text-white shadow-lg">
         <div className="mx-auto flex min-h-[88px] max-w-[1440px] flex-wrap items-center justify-between gap-5 px-5 py-5 sm:px-8 lg:px-12">

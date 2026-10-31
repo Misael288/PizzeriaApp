@@ -10,7 +10,7 @@ import {
   isSameOriginRequest,
   parseRouteId,
 } from "@/lib/catalog/http";
-import { editProduct } from "@/services/catalog-service";
+import { editProduct, removeProduct } from "@/services/catalog-service";
 import { parseProductInput } from "@/validators/catalog-validator";
 import { setProductAvailability } from "@/services/inventory-service";
 import { inventoryErrorResponse } from "@/lib/inventory/http";
@@ -99,6 +99,37 @@ export async function PUT(
 
     await editProduct(id, parsed.data);
     return NextResponse.json({ message: "Producto actualizado." });
+  } catch (error: unknown) {
+    return catalogErrorResponse(error);
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  context: RouteContext,
+): Promise<NextResponse> {
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json(
+      { message: "Origen de solicitud no válido." },
+      { status: 403 },
+    );
+  }
+
+  try {
+    const authorization = await authorizeRoles([ADMIN_ROLE]);
+    if (!authorization.authorized) return authorization.response;
+
+    const { id: rawId } = await context.params;
+    const id = parseRouteId(rawId);
+    if (!id) {
+      return NextResponse.json(
+        { message: "Identificador inválido." },
+        { status: 400 },
+      );
+    }
+
+    await removeProduct(id);
+    return NextResponse.json({ message: "Producto eliminado." });
   } catch (error: unknown) {
     return catalogErrorResponse(error);
   }

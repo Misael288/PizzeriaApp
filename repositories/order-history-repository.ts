@@ -17,6 +17,7 @@ const findRecentOrderHistory = () =>
       detalle_pedido: {
         select: {
           cantidad: true,
+          nombre_producto: true,
           productos: { select: { nombre: true } },
           tamanos: { select: { nombre: true } },
         },

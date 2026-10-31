@@ -1,5 +1,13 @@
 import { prisma } from "@/lib/database/prisma";
 
+const getPaidSalesTotal = async (from: Date, until: Date) => {
+  const summary = await prisma.pedidos.aggregate({
+    where: { pagado_en: { gte: from, lt: until } },
+    _sum: { total: true },
+  });
+  return summary._sum.total?.toString() ?? "0.00";
+};
+
 const getSalesReportData = async (from: Date, until: Date) => {
   const where = { pagado_en: { gte: from, lt: until } };
   const [summary, paymentGroups, recentOrders] = await Promise.all([
@@ -64,4 +72,4 @@ const getSalesReportData = async (from: Date, until: Date) => {
   };
 };
 
-export { getSalesReportData };
+export { getPaidSalesTotal, getSalesReportData };

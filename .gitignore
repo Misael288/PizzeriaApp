@@ -40,6 +40,8 @@ bin-release/
 /build
 /public/uploads/products/*
 !/public/uploads/products/.gitkeep
+/public/uploads/avatars/*
+/public/uploads/branding/*
 /private/payment-proofs/
 
 # misc

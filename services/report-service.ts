@@ -1,4 +1,7 @@
-import { getSalesReportData } from "@/repositories/report-repository";
+import {
+  getPaidSalesTotal,
+  getSalesReportData,
+} from "@/repositories/report-repository";
 
 class ReportServiceError extends Error {
   constructor(
@@ -16,6 +19,41 @@ const parseDate = (value: string | null): Date | null => {
   return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value
     ? null
     : date;
+};
+
+const parseInstant = (value: string | null): Date | null => {
+  if (
+    !value ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)
+  ) {
+    return null;
+  }
+  const instant = new Date(value);
+  return Number.isNaN(instant.getTime()) || instant.toISOString() !== value
+    ? null
+    : instant;
+};
+
+const getDashboardSalesTotal = async (
+  fromValue: string | null,
+  untilValue: string | null,
+) => {
+  const from = parseInstant(fromValue);
+  const until = parseInstant(untilValue);
+  if (!from || !until) {
+    throw new ReportServiceError(
+      "Indica los límites locales del día en formato ISO válido.",
+      400,
+    );
+  }
+  const duration = until.getTime() - from.getTime();
+  if (duration <= 0 || duration > 26 * 60 * 60 * 1000) {
+    throw new ReportServiceError(
+      "El intervalo del día debe ser mayor a cero y no superar 26 horas.",
+      422,
+    );
+  }
+  return getPaidSalesTotal(from, until);
 };
 
 const getSalesReport = async (fromValue: string | null, toValue: string | null) => {
@@ -39,4 +77,8 @@ const getSalesReport = async (fromValue: string | null, toValue: string | null) 
   return getSalesReportData(from, until);
 };
 
-export { getSalesReport, ReportServiceError };
+export {
+  getDashboardSalesTotal,
+  getSalesReport,
+  ReportServiceError,
+};

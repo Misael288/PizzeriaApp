@@ -541,23 +541,61 @@ export function CatalogManager({ role }: CatalogManagerProps) {
     }
   };
 
+  const deleteProduct = async (product: Product) => {
+    if (
+      !window.confirm(
+        `¿Eliminar permanentemente "${product.nombre}"? Se borrarán también su receta, ingredientes y presentaciones. Los pedidos anteriores conservarán su nombre y precio. Esta acción no se puede deshacer.`,
+      )
+    ) {
+      return;
+    }
+
+    setError("");
+    setNotice("");
+
+    try {
+      const response = await fetch(
+        `/api/catalog/products/${product.id_producto}`,
+        { method: "DELETE" },
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          await readMessage(response, "No se pudo eliminar el producto."),
+        );
+      }
+
+      if (editingProductId === product.id_producto) {
+        resetProductForm();
+      }
+      setNotice(`${product.nombre} eliminado.`);
+      await loadCatalog();
+    } catch (deleteError: unknown) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "No se pudo eliminar el producto.",
+      );
+    }
+  };
+
   const selectedSizeIds = new Set(productSizes.map((entry) => entry.sizeId));
 
   return (
      
-  <main className="min-h-screen bg-slate-100">
+  <main className="planeta-screen min-h-screen bg-slate-100">
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 
       {/* HEADER */}
 
-      <header className="mb-8 overflow-hidden rounded-3xl bg-[#071C3B] shadow-xl">
+      <header className="mb-8 overflow-hidden rounded-3xl bg-[#25364B] shadow-xl">
         <div className="flex flex-col gap-6 p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <span className="inline-flex rounded-full bg-blue-500/20 px-4 py-1.5 text-xs font-semibold tracking-widest text-blue-300">
               ADMINISTRACIÓN DEL CATÁLOGO
             </span>
 
-            <p className="mt-4 text-sm font-semibold uppercase tracking-widest text-[#F52727]">
+            <p className="mt-4 text-sm font-semibold uppercase tracking-widest text-red-300">
               Pizzería Planeta
             </p>
 
@@ -574,7 +612,7 @@ export function CatalogManager({ role }: CatalogManagerProps) {
 
           <a
             href="/dashboard"
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F52727] px-6 py-3 font-semibold text-white shadow-lg transition hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-400/30"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#D94B3D] px-6 py-3 font-semibold text-white shadow-lg transition hover:bg-[#B93A31] focus:outline-none focus:ring-4 focus:ring-red-400/30"
           >
             <span aria-hidden="true">←</span>
             Volver al panel
@@ -662,7 +700,7 @@ export function CatalogManager({ role }: CatalogManagerProps) {
           onClick={() => setActiveTab("products")}
           className={`rounded-xl px-5 py-3 text-sm font-semibold transition ${
             activeTab === "products"
-              ? "bg-blue-600 text-white shadow-md"
+              ? "bg-[#D94B3D] text-white shadow-md"
               : "text-slate-600 hover:bg-slate-100 hover:text-[#071C3B]"
           }`}
         >
@@ -674,7 +712,7 @@ export function CatalogManager({ role }: CatalogManagerProps) {
           onClick={() => setActiveTab("categories")}
           className={`rounded-xl px-5 py-3 text-sm font-semibold transition ${
             activeTab === "categories"
-              ? "bg-blue-600 text-white shadow-md"
+              ? "bg-[#D94B3D] text-white shadow-md"
               : "text-slate-600 hover:bg-slate-100 hover:text-[#071C3B]"
           }`}
         >
@@ -1300,7 +1338,7 @@ export function CatalogManager({ role }: CatalogManagerProps) {
           {/* LISTADO DE PRODUCTOS */}
 
           <section
-            className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${
+            className={`min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${
               isAdmin ? "xl:col-span-3" : "xl:col-span-5"
             }`}
           >
@@ -1355,7 +1393,7 @@ export function CatalogManager({ role }: CatalogManagerProps) {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-5 p-5 sm:grid-cols-2 2xl:grid-cols-3">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,17rem),1fr))] gap-5 p-5">
                 {filteredProducts.map((product) => (
                   <article
                     key={product.id_producto}
@@ -1462,6 +1500,14 @@ export function CatalogManager({ role }: CatalogManagerProps) {
                             {product.disponible
                               ? "Marcar no disponible"
                               : "Hacer disponible"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void deleteProduct(product)}
+                            className="rounded-xl border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50"
+                          >
+                            Eliminar producto
                           </button>
                         </div>
                       )}

@@ -69,7 +69,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="flex min-h-screen">
+    <main className="planeta-screen flex min-h-screen">
       {/* Columna izquierda - Imagen */}
       <section className="relative hidden md:block md:w-1/2">
         <img
@@ -203,7 +203,7 @@ export default function LoginPage() {
             )}
 
             <button
-              className="w-full rounded-lg bg-green-700 px-4 py-3 font-semibold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-lg bg-[#D94B3D] px-4 py-3 font-semibold text-white transition hover:bg-[#B93A31] disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isSubmitting}
               type="submit"
             >

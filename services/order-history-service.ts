@@ -15,7 +15,7 @@ const getRecentOrderHistory = async () => {
     paymentMethod: order.metodos_pago?.nombre ?? null,
     items: order.detalle_pedido.map((item) => ({
       quantity: item.cantidad,
-      name: item.productos.nombre,
+      name: item.productos?.nombre ?? item.nombre_producto ?? "Producto eliminado",
       size: item.tamanos?.nombre ?? null,
     })),
     changes: order.historial_pedidos.map((entry) => ({

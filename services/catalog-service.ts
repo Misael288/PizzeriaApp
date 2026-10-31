@@ -1,7 +1,12 @@
+import { rm } from "node:fs/promises";
+import path from "node:path";
+
 import {
+  countProductsUsingImage,
   createCategory,
   createProduct,
   createSize,
+  deleteProductById,
   findCategoryById,
   findCategoryIsActive,
   findProductById,
@@ -140,6 +145,26 @@ const editProduct = async (id: number, data: ProductInput) => {
   await updateProduct(id, data);
 };
 
+const removeProduct = async (id: number): Promise<void> => {
+  const existingProduct = await findProductById(id);
+  if (!existingProduct) {
+    throw new CatalogServiceError("El producto no existe.", 404);
+  }
+
+  await deleteProductById(id);
+
+  const image = existingProduct.imagen;
+  if (image && isCatalogImagePath(image)) {
+    try {
+      if ((await countProductsUsingImage(image)) === 0) {
+        await rm(path.join(process.cwd(), "public", image), { force: true });
+      }
+    } catch (error: unknown) {
+      console.error("Deleted product image cleanup failed:", error);
+    }
+  }
+};
+
 export {
   CatalogServiceError,
   addCategory,
@@ -150,4 +175,5 @@ export {
   getCategories,
   getProducts,
   getSizes,
+  removeProduct,
 };

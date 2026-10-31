@@ -142,10 +142,21 @@ const findProductById = (id: number) =>
     },
   });
 
+const deleteProductById = (id: number) =>
+  prisma.productos.delete({
+    where: { id_producto: id },
+    select: { id_producto: true },
+  });
+
+const countProductsUsingImage = (image: string) =>
+  prisma.productos.count({ where: { imagen: image } });
+
 export {
+  countProductsUsingImage,
   createCategory,
   createProduct,
   createSize,
+  deleteProductById,
   findCategoryById,
   findCategoryIsActive,
   findProductById,

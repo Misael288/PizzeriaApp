@@ -274,6 +274,7 @@ const createGuestOrder = (
       );
       return {
         id_producto: product.id_producto,
+        nombre_producto: product.nombre,
         id_tamano: item.sizeId,
         cantidad: item.quantity,
         precio_unitario: new Prisma.Decimal(unitPrice).add(extraPrice),
@@ -328,6 +329,7 @@ const createGuestOrder = (
         detalle_pedido: {
           create: lines.map((line) => ({
             id_producto: line.id_producto,
+            nombre_producto: line.nombre_producto,
             id_tamano: line.id_tamano,
             cantidad: line.cantidad,
             precio_unitario: line.precio_unitario,
@@ -369,6 +371,7 @@ const findOrderByTrackingHash = (trackingTokenHash: string) =>
         select: {
           cantidad: true,
           precio_unitario: true,
+          nombre_producto: true,
           productos: { select: { nombre: true } },
           tamanos: { select: { nombre: true } },
           detalle_pedido_ingredientes: {
@@ -499,7 +502,12 @@ const confirmOrderAndDeductInventory = async (
 
     const requiredByIngredient = new Map<number, Prisma.Decimal>();
     for (const item of order.detalle_pedido) {
-      if (!item.productos.disponible || !item.productos.categorias.activo) {
+      if (
+        !item.productos ||
+        item.id_producto === null ||
+        !item.productos.disponible ||
+        !item.productos.categorias.activo
+      ) {
         throw new Error("ORDER_PRODUCT_UNAVAILABLE");
       }
       const recipeRows = await transaction.recetas.findMany({

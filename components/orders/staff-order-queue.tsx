@@ -128,6 +128,7 @@ export function StaffOrderQueue({ role }: StaffOrderQueueProps) {
   const [printMode, setPrintMode] = useState<"kitchen" | "payment">("kitchen");
   const initializedSettings = useRef(false);
   const previousOrders = useRef<Map<number, string> | null>(null);
+  const scrolledToOrder = useRef<string | null>(null);
 
   const loadOrders = useCallback(async () => {
     try {
@@ -210,6 +211,15 @@ export function StaffOrderQueue({ role }: StaffOrderQueueProps) {
       if (timer) clearTimeout(timer);
     };
   }, [loadOrders]);
+
+  useEffect(() => {
+    const targetId = window.location.hash.slice(1);
+    if (!targetId || scrolledToOrder.current === targetId) return;
+    const target = document.getElementById(targetId);
+    if (!target) return;
+    scrolledToOrder.current = targetId;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [orders]);
 
   const updateOrder = async (
     order: StaffOrder,
@@ -354,28 +364,29 @@ export function StaffOrderQueue({ role }: StaffOrderQueueProps) {
   };
 
   return (
-    <main className="min-h-screen bg-stone-100 px-4 py-8 sm:px-6">
-      <div className="mx-auto max-w-7xl">
-        <header className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-red-700">
-              Operación
-            </p>
-            <h1 className="mt-1 text-3xl font-bold text-stone-900">
-              Cola de pedidos
-            </h1>
-            <p className="mt-2 text-stone-600">
-              Prioridad manual; cuando coincide, se atiende primero el pedido
-              más antiguo. La lista se actualiza cada 20 segundos y muestra
-              avisos mientras esta pantalla permanece abierta.
-            </p>
-          </div>
+    <main className="planeta-screen min-h-screen bg-[#F4F7FA]">
+      <div className="bg-[#243447] text-white">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <span className="text-xl font-bold">Pizzería Planeta</span>
+          <span className="text-lg font-semibold">Comandas</span>
           <a
-            className="rounded-lg border border-stone-300 bg-white px-4 py-2 font-semibold text-stone-700 hover:bg-stone-50"
+            className="rounded-lg border border-white/30 px-3 py-1.5 text-sm font-semibold text-white hover:bg-white/10"
             href="/dashboard"
           >
             Volver al panel
           </a>
+        </div>
+      </div>
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        <header>
+          <h1 className="text-2xl font-bold text-[#243447] sm:text-3xl">
+            Cola de preparación
+          </h1>
+          <p className="mt-1 text-sm text-[#667085]">
+            Orden automático por nivel de prioridad y tiempo de espera. La lista
+            se actualiza cada 20 segundos y muestra avisos mientras esta
+            pantalla permanece abierta.
+          </p>
         </header>
 
         {isAdmin && (
@@ -438,7 +449,7 @@ export function StaffOrderQueue({ role }: StaffOrderQueueProps) {
         ) : (
           <section
             aria-label="Pedidos activos"
-            className="mt-6 grid gap-4 lg:grid-cols-2"
+            className="mt-6 grid items-start gap-6 md:grid-cols-2 xl:grid-cols-3"
           >
             {orders.map((order) => {
               const ageMinutes = Math.max(
@@ -455,27 +466,45 @@ export function StaffOrderQueue({ role }: StaffOrderQueueProps) {
 
               return (
                 <article
-                  className="rounded-2xl bg-white p-5 shadow-sm"
+                  className="overflow-hidden rounded-2xl border border-[#D9E2EC] bg-white shadow-sm"
                   key={order.id}
+                  id={`pedido-${order.id}`}
+                  style={{ scrollMarginTop: "1.5rem" }}
                 >
+                  <div
+                    className={`px-5 py-3 text-xs font-bold uppercase tracking-wider ${
+                      order.priority === "ALTA" || order.priority === "URGENTE"
+                        ? "bg-[#E55353] text-white"
+                        : "bg-[#F2C94C] text-[#243447]"
+                    }`}
+                  >
+                    {priorityLabels[order.priority as OrderPriority] ??
+                      order.priority}
+                  </div>
+                  <div className="p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-bold uppercase tracking-wide text-stone-500">
-                        Pedido #{order.id}
+                      <p className="text-3xl font-extrabold text-[#243447]">
+                        #{order.id}
                       </p>
-                      <h2 className="mt-1 text-xl font-bold">
+                      <h2 className="mt-1 text-lg font-bold text-[#243447]">
                         {order.customer.nombre}
                       </h2>
                       <a
-                        className="text-sm text-stone-600 underline"
+                        className="text-sm text-[#667085] underline"
                         href={`tel:${encodeURIComponent(order.customer.telefono)}`}
                       >
                         {order.customer.telefono}
                       </a>
                     </div>
-                    <span className="rounded-full bg-stone-100 px-3 py-1.5 text-sm font-semibold">
-                      {statusLabels[order.status] ?? order.status}
-                    </span>
+                    <div className="text-right">
+                      <p className="text-[11px] text-[#667085]">
+                        Estado operativo
+                      </p>
+                      <span className="mt-1 inline-block rounded-full bg-[#EAF2FE] px-3 py-1.5 text-sm font-semibold text-[#2F80ED]">
+                        {statusLabels[order.status] ?? order.status}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
@@ -531,7 +560,7 @@ export function StaffOrderQueue({ role }: StaffOrderQueueProps) {
                       {order.deliveryAddress}
                     </p>
                   )}
-                  <ul className="mt-4 space-y-1 border-t border-stone-100 pt-3 text-sm">
+                  <ul className="mt-4 space-y-1 border-t border-[#D9E2EC] pt-3 text-sm font-medium text-[#263238]">
                     {order.items.map((item, index) => (
                       <li key={`${item.name}-${item.size ?? ""}-${index}`}>
                         {item.quantity} × {item.name}
@@ -556,7 +585,7 @@ export function StaffOrderQueue({ role }: StaffOrderQueueProps) {
                     {order.status === "PENDIENTE_CONFIRMACION" && (
                       <>
                         <button
-                          className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white disabled:opacity-60"
+                          className="rounded-lg bg-[#2F80ED] px-4 py-2 font-semibold text-white hover:bg-blue-600 disabled:opacity-60"
                           disabled={busyOrderId === order.id}
                           onClick={() => void confirmOrder(order)}
                           type="button"
@@ -564,7 +593,7 @@ export function StaffOrderQueue({ role }: StaffOrderQueueProps) {
                           Confirmar, descontar stock e imprimir
                         </button>
                         <button
-                          className="rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-800 disabled:opacity-60"
+                          className="rounded-lg bg-[#FF1919] px-4 py-2 font-semibold text-white hover:bg-red-700 disabled:opacity-60"
                           disabled={busyOrderId === order.id}
                           onClick={() => {
                             if (
@@ -705,6 +734,7 @@ export function StaffOrderQueue({ role }: StaffOrderQueueProps) {
                         Guardando...
                       </span>
                     )}
+                  </div>
                   </div>
                 </article>
               );

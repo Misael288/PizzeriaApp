@@ -327,7 +327,7 @@ const getGuestOrderTracking = async (token: string) => {
     proofUploaded: order.comprobante_pago !== null,
     proofUploadedAt: order.comprobante_pago?.creado_en.toISOString() ?? null,
     items: order.detalle_pedido.map((item) => ({
-      name: item.productos.nombre,
+      name: item.productos?.nombre ?? item.nombre_producto ?? "Producto eliminado",
       size: item.tamanos?.nombre ?? null,
       quantity: item.cantidad,
       unitPrice: item.precio_unitario.toString(),
@@ -360,7 +360,7 @@ const getStaffOrderQueue = async () => {
       expectedPaymentMethodId: order.id_metodo_pago_previsto,
       customer: order.clientes,
       items: order.detalle_pedido.map((item) => ({
-        name: item.productos.nombre,
+        name: item.productos?.nombre ?? item.nombre_producto ?? "Producto eliminado",
         size: item.tamanos?.nombre ?? null,
         quantity: item.cantidad,
         unitPrice: item.precio_unitario,

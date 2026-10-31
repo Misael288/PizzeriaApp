@@ -12,6 +12,26 @@ const findUserForAuthentication = (email: string) =>
     include: { role: true },
   });
 
+const findPasswordHashByUserId = async (
+  userId: number,
+): Promise<string | null> => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { passwordHash: true },
+  });
+  return user?.passwordHash ?? null;
+};
+
+const updatePasswordHash = async (
+  userId: number,
+  passwordHash: string,
+): Promise<void> => {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash },
+  });
+};
+
 const findSessionByTokenHash = (tokenHash: string) =>
   prisma.userSession.findUnique({
     where: { tokenHash },
@@ -74,6 +94,8 @@ export {
   createSessionRecord,
   deleteSessionById,
   deleteSessionsByTokenHash,
+  findPasswordHashByUserId,
   findSessionByTokenHash,
   findUserForAuthentication,
+  updatePasswordHash,
 };

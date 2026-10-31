@@ -37,13 +37,14 @@ model clientes {
 model detalle_pedido {
   id_detalle                  Int                           @id @default(autoincrement())
   id_pedido                   Int
-  id_producto                 Int
+  id_producto                 Int?
+  nombre_producto             String?                       @db.VarChar(100)
   id_tamano                   Int?
   cantidad                    Int
   precio_unitario             Decimal                       @db.Decimal(10, 2)
   subtotal                    Decimal?                      @default(dbgenerated("((cantidad)::numeric * precio_unitario)")) @db.Decimal(10, 2)
   pedidos                     pedidos                       @relation(fields: [id_pedido], references: [id_pedido], onDelete: Cascade, onUpdate: NoAction)
-  productos                   productos                     @relation(fields: [id_producto], references: [id_producto], onUpdate: NoAction)
+  productos                   productos?                    @relation(fields: [id_producto], references: [id_producto], onDelete: SetNull, onUpdate: NoAction)
   tamanos                     tamanos?                      @relation(fields: [id_tamano], references: [id_tamano], onUpdate: NoAction)
   detalle_pedido_ingredientes detalle_pedido_ingredientes[]
 
